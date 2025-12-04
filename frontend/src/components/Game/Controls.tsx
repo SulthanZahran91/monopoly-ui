@@ -72,56 +72,82 @@ export const Controls = () => {
             )}
 
             <div className="flex flex-wrap gap-2">
-                <button
-                    onClick={() => sendMessage({ type: 'RollDice' })}
-                    disabled={!canRoll}
-                    className={`px-6 py-3 rounded-lg font-bold transition-colors ${canRoll
-                        ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
-                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        }`}
-                >
-                    Roll Dice
-                </button>
+                {currentPlayer.is_in_jail && isMyTurn ? (
+                    <>
+                        <div className="w-full text-red-400 font-bold mb-2">You are in Jail!</div>
+                        <button
+                            onClick={() => sendMessage({ type: 'PayBail' })}
+                            disabled={currentPlayer.money < 50000}
+                            className={`px-6 py-3 rounded-lg font-bold transition-colors ${currentPlayer.money >= 50000
+                                ? 'bg-red-500 hover:bg-red-600 text-white'
+                                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                }`}
+                        >
+                            Pay Bail (Rp 50k)
+                        </button>
+                        <button
+                            onClick={() => sendMessage({ type: 'RollDice' })}
+                            className="px-6 py-3 rounded-lg font-bold transition-colors bg-yellow-500 hover:bg-yellow-600 text-black"
+                        >
+                            Roll Doubles
+                        </button>
+                    </>
+                ) : (
+                    <>
+                        <button
+                            onClick={() => sendMessage({ type: 'RollDice' })}
+                            disabled={!canRoll}
+                            className={`px-6 py-3 rounded-lg font-bold transition-colors ${canRoll
+                                ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
+                                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                }`}
+                        >
+                            Roll Dice
+                        </button>
 
-                {canBuy && propertyInfo && propertyInfo.price !== undefined && (
-                    <button
-                        onClick={() => sendMessage({ type: 'BuyProperty' })}
-                        className="px-6 py-3 rounded-lg font-bold transition-colors bg-green-500 hover:bg-green-600 text-white"
-                    >
-                        Buy (Rp {(propertyInfo.price / 1000).toFixed(0)}k)
-                    </button>
+                        {canBuy && propertyInfo && propertyInfo.price !== undefined && (
+                            <button
+                                onClick={() => sendMessage({ type: 'BuyProperty' })}
+                                className="px-6 py-3 rounded-lg font-bold transition-colors bg-green-500 hover:bg-green-600 text-white"
+                            >
+                                Buy (Rp {(propertyInfo.price / 1000).toFixed(0)}k)
+                            </button>
+                        )}
+
+                        {canPayRent && propertyInfo && propertyInfo.rent !== undefined && (
+                            <button
+                                onClick={() => sendMessage({ type: 'PayRent' })}
+                                className="px-6 py-3 rounded-lg font-bold transition-colors bg-red-500 hover:bg-red-600 text-white"
+                            >
+                                Pay Rent (Rp {(propertyInfo.rent / 1000).toFixed(0)}k)
+                            </button>
+                        )}
+
+                        <button
+                            onClick={() => sendMessage({ type: 'EndTurn' })}
+                            disabled={!canEndTurn}
+                            className={`px-6 py-3 rounded-lg font-bold transition-colors ${canEndTurn
+                                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                }`}
+                        >
+                            End Turn
+                        </button>
+                    </>
                 )}
-
-                {canPayRent && propertyInfo && propertyInfo.rent !== undefined && (
-                    <button
-                        onClick={() => sendMessage({ type: 'PayRent' })}
-                        className="px-6 py-3 rounded-lg font-bold transition-colors bg-red-500 hover:bg-red-600 text-white"
-                    >
-                        Pay Rent (Rp {(propertyInfo.rent / 1000).toFixed(0)}k)
-                    </button>
-                )}
-
-                <button
-                    onClick={() => sendMessage({ type: 'EndTurn' })}
-                    disabled={!canEndTurn}
-                    className={`px-6 py-3 rounded-lg font-bold transition-colors ${canEndTurn
-                        ? 'bg-blue-500 hover:bg-blue-600 text-white'
-                        : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                        }`}
-                >
-                    End Turn
-                </button>
             </div>
 
-            {dice && (
-                <div className="text-white">
-                    Last Roll: <span className="font-mono text-xl text-yellow-500">{dice[0]} + {dice[1]} = {dice[0] + dice[1]}</span>
-                </div>
-            )}
+            {
+                dice && (
+                    <div className="text-white">
+                        Last Roll: <span className="font-mono text-xl text-yellow-500">{dice[0]} + {dice[1]} = {dice[0] + dice[1]}</span>
+                    </div>
+                )
+            }
 
             <div className="text-gray-300 text-sm">
                 Phase: <span className="font-bold text-white">{gameState.phase}</span>
             </div>
-        </div>
+        </div >
     );
 };

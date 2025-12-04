@@ -49,8 +49,14 @@ pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), Stri
         return Err("You own this property".to_string());
     }
     
-    // 4. Calculate rent (basic for now)
-    let rent = property_info.rent;
+    // 4. Calculate rent
+    let dice_sum = if let Some((d1, d2)) = game.last_dice_roll {
+        d1 + d2
+    } else {
+        0 // Should not happen if moved by dice, but if moved by card without roll, might be 0.
+          // For utilities, this means 0 rent if no dice roll recorded.
+    };
+    let rent = game.calculate_rent(player_pos, dice_sum);
     
     // 5. Check funds
     if game.players[player_idx].money < rent {

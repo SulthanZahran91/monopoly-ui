@@ -66,6 +66,8 @@ impl Room {
                         _ => "yellow".to_string(),
                     },
                     is_in_jail: false,
+                    jail_turns: 0,
+                    doubles_count: 0,
                 });
             }
         }

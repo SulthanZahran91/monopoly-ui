@@ -23,7 +23,10 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         setDice,
         setError,
         addMoneyAnimation,
-        setVoteState
+        setVoteState,
+        setCurrentCard,
+        removeTrade,
+        updatePropertyHouses
     } = useGameStore();
 
     // Helper to handle state updates and detect money changes
@@ -166,9 +169,23 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                         setVoteState(null);
                         // Maybe show toast?
                         break;
+                    case 'TradeCancelled':
+                        removeTrade(message.trade_id);
+                        break;
+                    case 'BuildingBought':
+                    case 'BuildingSold':
+                        updatePropertyHouses(message.property_id, message.houses);
+                        break;
                     case 'Error':
                         setError(message.message);
                         logToServer('warn', 'Received error message from server', { message: message.message });
+                        break;
+                    case 'CardDrawn':
+                        setCurrentCard({ card: message.card, is_chance: message.is_chance });
+                        break;
+                    case 'JailStateUpdated':
+                        // Optional: Show toast notification
+                        console.log(`Player ${message.player_id} jail state updated: ${message.is_in_jail}`);
                         break;
                 }
             } catch (err) {

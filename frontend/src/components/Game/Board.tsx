@@ -4,10 +4,54 @@ import { MoneyFloatingText } from './MoneyFloatingText';
 
 const TILES = Array.from({ length: 40 }, (_, i) => ({ id: i }));
 
-export const Board = () => {
+interface BoardProps {
+    onTileClick?: (tileId: number) => void;
+}
+
+export const Board: React.FC<BoardProps> = ({ onTileClick }) => {
     const { gameState } = useGameStore();
 
     if (!gameState) return null;
+
+    // Helper to get tile position
+    const getTilePosition = (index: number): React.CSSProperties => {
+        // Board is 11x11 grid
+        // 0 is bottom-right (11, 11)
+        // 10 is bottom-left (11, 1)
+        // 20 is top-left (1, 1)
+        // 30 is top-right (1, 11)
+
+        let row = 1;
+        let col = 1;
+
+        if (index >= 0 && index <= 10) {
+            // Bottom row: 10 -> 0 (Left to Right? No, Monopoly starts Bottom-Right and goes Left)
+            // 0 is GO (Bottom-Right). 10 is Jail (Bottom-Left).
+            // So 0 is at (11, 11). 1 is (11, 10)... 10 is (11, 1).
+            row = 11;
+            col = 11 - index;
+        } else if (index >= 11 && index <= 20) {
+            // Left column: 11 -> 20 (Bottom to Top)
+            // 11 is (10, 1). 20 is (1, 1).
+            col = 1;
+            row = 11 - (index - 10);
+        } else if (index >= 21 && index <= 30) {
+            // Top row: 21 -> 30 (Left to Right)
+            // 21 is (1, 2). 30 is (1, 11).
+            row = 1;
+            col = 1 + (index - 20);
+        } else if (index >= 31 && index <= 39) {
+            // Right column: 31 -> 39 (Top to Bottom)
+            // 31 is (2, 11). 39 is (10, 11).
+            col = 11;
+            row = 1 + (index - 30);
+        }
+
+        return {
+            gridRow: row,
+            gridColumn: col,
+        };
+    };
 
     return (
         <div className="grid grid-cols-11 grid-rows-11 gap-1 p-4 bg-green-800 rounded-xl overflow-hidden relative" style={{ aspectRatio: '1/1', maxHeight: '90vh' }}>
@@ -20,29 +64,46 @@ export const Board = () => {
 
             {TILES.map((tile) => {
                 const tileInfo = getTile(tile.id);
-                const propertyState = gameState.properties.find(p => p.id === tile.id);
-
-                let ownerColor = null;
-                if (propertyState?.owner_id) {
-                    const owner = gameState.players.find(p => p.id === propertyState.owner_id);
-                    if (owner) ownerColor = owner.color;
-                }
+                const propertyState = gameState?.properties.find(p => p.id === tileInfo?.id);
+                const owner = propertyState?.owner_id ? gameState.players.find(p => p.id === propertyState.owner_id) : null;
 
                 const style = getTilePosition(tile.id);
 
                 return (
                     <div
                         key={tile.id}
-                        className="bg-white text-xs relative border border-gray-300 flex flex-col justify-between overflow-hidden shadow-sm transition-transform hover:z-10 hover:scale-105"
+                        className="bg-white text-xs relative border border-gray-300 flex flex-col justify-between overflow-hidden shadow-sm transition-transform hover:z-10 hover:scale-105 cursor-pointer"
                         style={style}
+                        onClick={() => onTileClick?.(tile.id)}
                     >
-                        {/* Ownership Strip */}
-                        {ownerColor && (
-                            <div className="h-2 w-full shrink-0" style={{ backgroundColor: ownerColor }} />
-                        )}
+                        {/* Property Group Color Strip and Owner/Building Indicator */}
+                        {tileInfo?.type === 'Property' && tileInfo.group && (
+                            <div className="absolute top-0 left-0 right-0 h-4" style={{ backgroundColor: getGroupColor(tileInfo.group) }}>
+                                {/* Owner Indicator */}
+                                {owner && (
+                                    <div
+                                        className="absolute top-0 right-0 w-4 h-4 border-2 border-white rounded-full shadow-sm z-10"
+                                        style={{ backgroundColor: owner.color }}
+                                        title={`Owned by ${owner.name}`}
+                                    />
+                                )}
 
-                        {/* Property Group Color Strip (if property) */}
-                        {tileInfo?.group && (
+                                {/* Buildings */}
+                                {propertyState && propertyState.houses > 0 && (
+                                    <div className="absolute top-0 left-0 right-0 flex justify-center space-x-0.5 -mt-1">
+                                        {propertyState.houses === 5 ? (
+                                            <span className="text-xs" title="Fakultas (Hotel)">🏫</span>
+                                        ) : (
+                                            Array.from({ length: propertyState.houses }).map((_, i) => (
+                                                <span key={i} className="text-[10px]" title="Gedung (House)">🏠</span>
+                                            ))
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {/* Fallback for non-property tiles or if no owner/buildings, still show group color if applicable */}
+                        {tileInfo?.type !== 'Property' && tileInfo?.group && (
                             <div className={`h-3 w-full shrink-0 ${getGroupColor(tileInfo.group)}`} />
                         )}
 
@@ -65,6 +126,11 @@ export const Board = () => {
                                             style={{ backgroundColor: p.color }}
                                             title={p.name}
                                         />
+                                        {p.is_in_jail && (
+                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                <span className="text-[8px] leading-none">⛓️</span>
+                                            </div>
+                                        )}
                                         <MoneyFloatingText playerId={p.id} />
                                     </div>
                                 ))}
@@ -77,42 +143,5 @@ export const Board = () => {
     );
 };
 
-const getTilePosition = (index: number): React.CSSProperties => {
-    // Board is 11x11 grid
-    // 0 is bottom-right (11, 11)
-    // 10 is bottom-left (11, 1)
-    // 20 is top-left (1, 1)
-    // 30 is top-right (1, 11)
 
-    let row = 1;
-    let col = 1;
-
-    if (index >= 0 && index <= 10) {
-        // Bottom row: 10 -> 0 (Left to Right? No, Monopoly starts Bottom-Right and goes Left)
-        // 0 is GO (Bottom-Right). 10 is Jail (Bottom-Left).
-        // So 0 is at (11, 11). 1 is (11, 10)... 10 is (11, 1).
-        row = 11;
-        col = 11 - index;
-    } else if (index >= 11 && index <= 20) {
-        // Left column: 11 -> 20 (Bottom to Top)
-        // 11 is (10, 1). 20 is (1, 1).
-        col = 1;
-        row = 11 - (index - 10);
-    } else if (index >= 21 && index <= 30) {
-        // Top row: 21 -> 30 (Left to Right)
-        // 21 is (1, 2). 30 is (1, 11).
-        row = 1;
-        col = 1 + (index - 20);
-    } else if (index >= 31 && index <= 39) {
-        // Right column: 31 -> 39 (Top to Bottom)
-        // 31 is (2, 11). 39 is (10, 11).
-        col = 11;
-        row = 1 + (index - 30);
-    }
-
-    return {
-        gridRow: row,
-        gridColumn: col,
-    };
-};
 

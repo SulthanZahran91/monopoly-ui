@@ -100,21 +100,177 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                     ClientMessage::RollDice => {
                                         if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
                                             if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
                                                 if let Some(state) = &mut room.game_state {
                                                     let current_player_idx = state.current_turn;
                                                     if let Some(player) = state.players.get(current_player_idx) {
                                                         if &player.id == player_id && state.phase == GamePhase::Rolling {
-                                                            let dice = roll_dice();
-                                                            let steps = dice.0 + dice.1;
-                                                            
-                                                            state.move_player(current_player_idx, steps);
-                                                            state.phase = GamePhase::EndTurn;
+                                                            let (dice, events) = state.handle_roll();
                                                             
                                                             let response = ServerMessage::DiceRolled { 
                                                                 dice, 
                                                                 state: state.clone() 
                                                             };
-                                                            let _ = room.tx.send(response);
+                                                            let _ = tx.send(response);
+                                                            
+                                                            let events_occurred = !events.is_empty();
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+
+                                                            if state.phase == GamePhase::Rolling {
+                                                                state.phase = GamePhase::EndTurn;
+                                                            }
+                                                            
+                                                            if events_occurred {
+                                                                let _ = tx.send(ServerMessage::GameStateUpdate { state: state.clone() });
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::PayBail => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    let current_player_idx = state.current_turn;
+                                                    if let Some(player) = state.players.get(current_player_idx) {
+                                                        if &player.id == player_id {
+                                                            match state.pay_bail(current_player_idx) {
+                                                                Ok(events) => {
+                                                                    for event in events {
+                                                                        let _ = tx.send(event);
+                                                                    }
+                                                                    let _ = tx.send(ServerMessage::GameStateUpdate { state: state.clone() });
+                                                                }
+                                                                Err(e) => {
+                                                                    let response = ServerMessage::Error { message: e };
+                                                                    let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::UseJailCard => {
+                                        // Not implemented yet
+                                    }
+                                    ClientMessage::ProposeTrade { target_player_id, offer, request } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    match state.handle_propose_trade(player_id.clone(), target_player_id, offer, request) {
+                                                        Ok(events) => {
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let response = ServerMessage::Error { message: e };
+                                                            let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::AcceptTrade { trade_id } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    match state.handle_accept_trade(trade_id, player_id.clone()) {
+                                                        Ok(events) => {
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let response = ServerMessage::Error { message: e };
+                                                            let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::RejectTrade { trade_id } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    match state.handle_reject_trade(trade_id, player_id.clone()) {
+                                                        Ok(events) => {
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let response = ServerMessage::Error { message: e };
+                                                            let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::CancelTrade { trade_id } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    match state.handle_cancel_trade(trade_id, player_id.clone()) {
+                                                        Ok(events) => {
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = tx.send(ServerMessage::Error { message: e });
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::BuyBuilding { property_id } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    match state.handle_buy_building(player_id.clone(), property_id) {
+                                                        Ok(events) => {
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = tx.send(ServerMessage::Error { message: e });
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::SellBuilding { property_id } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    match state.handle_sell_building(player_id.clone(), property_id) {
+                                                        Ok(events) => {
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = tx.send(ServerMessage::Error { message: e });
                                                         }
                                                     }
                                                 }

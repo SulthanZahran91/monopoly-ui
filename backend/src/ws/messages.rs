@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
 use crate::room::player::Player;
-use crate::game::state::GameState;
+use crate::game::state::{GameState, PlayerState};
+use crate::game::state::Card;
+use crate::game::trade::{TradeProposal, TradeOffer};
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
@@ -14,6 +16,14 @@ pub enum ClientMessage {
     EndTurn,
     VoteKick { target_player_id: String },
     CastVote { vote: bool },
+    PayBail,
+    UseJailCard,
+    ProposeTrade { target_player_id: String, offer: TradeOffer, request: TradeOffer },
+    AcceptTrade { trade_id: String },
+    RejectTrade { trade_id: String },
+    CancelTrade { trade_id: String },
+    BuyBuilding { property_id: usize },
+    SellBuilding { property_id: usize },
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -30,5 +40,13 @@ pub enum ServerMessage {
     VoteUpdate { votes_for: usize, votes_against: usize, required: usize },
     PlayerKicked { player_id: String },
     VoteFailed { reason: String },
+    CardDrawn { card: Card, is_chance: bool },
+    JailStateUpdated { player_id: String, is_in_jail: bool, jail_turns: u8 },
+    TradeProposed { proposal: TradeProposal },
+    TradeAccepted { trade_id: String },
+    TradeRejected { trade_id: String },
+    TradeCancelled { trade_id: String },
+    BuildingBought { property_id: usize, houses: u8 },
+    BuildingSold { property_id: usize, houses: u8 },
     Error { message: String },
 }
