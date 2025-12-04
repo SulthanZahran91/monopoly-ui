@@ -1,0 +1,31 @@
+# General
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
+*.log
+
+# Rust
+target/
+**/*.rs.bk
+
+# Node / Frontend
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm/
+bun.lockb
+
+# Project specific
+logs/
+test_ws.js
+verify_game.js
+package.json
+bun.lock
