@@ -5,6 +5,8 @@ import { PlayerList } from './PlayerList';
 import { VoteModal } from './VoteModal';
 import { CardModal } from './CardModal';
 import { IncomingTradeModal } from './Trade/IncomingTradeModal';
+import { JailModal } from './JailModal';
+import { CardNotification } from './CardNotification';
 import { PropertyModal } from './PropertyModal';
 
 export const Game: React.FC = () => {
@@ -20,6 +22,8 @@ export const Game: React.FC = () => {
                 <PlayerList />
             </div>
             <VoteModal />
+            <JailModal />
+            <CardNotification />
             <CardModal />
             <IncomingTradeModal />
             <PropertyModal

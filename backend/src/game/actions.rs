@@ -2,6 +2,10 @@ use crate::game::state::GameState;
 use crate::game::board::get_property;
 
 pub fn handle_buy_property(game: &mut GameState, player_id: &str) -> Result<(), String> {
+    // 0. Check state
+    game.check_turn(player_id)?;
+    game.check_phase(crate::game::state::GamePhase::EndTurn)?;
+
     // 1. Find player
     let player_idx = game.players.iter().position(|p| p.id == player_id)
         .ok_or("Player not found")?;
@@ -33,6 +37,10 @@ pub fn handle_buy_property(game: &mut GameState, player_id: &str) -> Result<(), 
 }
 
 pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), String> {
+    // 0. Check state
+    game.check_turn(player_id)?;
+    game.check_phase(crate::game::state::GamePhase::EndTurn)?;
+
     // 1. Find player
     let player_idx = game.players.iter().position(|p| p.id == player_id)
         .ok_or("Player not found")?;
@@ -73,4 +81,102 @@ pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), Stri
     game.rent_paid = true;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::state::{GameState, PlayerState};
+
+    #[test]
+    fn test_buy_property_success() {
+        let mut game = GameState::new();
+        // Add a player
+        game.players.push(PlayerState {
+            id: "player1".to_string(),
+            name: "Test Player".to_string(),
+            money: 100_000,
+            position: 1, // ID 1 is Matematika (Price 60_000)
+            color: "red".to_string(),
+            is_in_jail: false,
+            jail_turns: 0,
+            doubles_count: 0,
+            held_cards: Vec::new(),
+        });
+        game.phase = crate::game::state::GamePhase::EndTurn;
+
+        // Ensure property is not owned
+        assert!(game.properties.iter().find(|p| p.id == 1).unwrap().owner_id.is_none());
+
+        // Buy
+        let result = handle_buy_property(&mut game, "player1");
+        assert!(result.is_ok());
+
+        // Check ownership
+        let prop = game.properties.iter().find(|p| p.id == 1).unwrap();
+        assert_eq!(prop.owner_id, Some("player1".to_string()));
+        
+        // Check money
+        let player = game.players.iter().find(|p| p.id == "player1").unwrap();
+        assert_eq!(player.money, 40_000); // 100k - 60k
+    }
+
+    #[test]
+    fn test_buy_property_insufficient_funds() {
+        let mut game = GameState::new();
+        game.players.push(PlayerState {
+            id: "player1".to_string(),
+            name: "Test Player".to_string(),
+            money: 10_000, // Not enough for 60k
+            position: 1,
+            color: "red".to_string(),
+            is_in_jail: false,
+            jail_turns: 0,
+            doubles_count: 0,
+            held_cards: Vec::new(),
+        });
+        game.phase = crate::game::state::GamePhase::EndTurn;
+
+        let result = handle_buy_property(&mut game, "player1");
+        assert_eq!(result, Err("Insufficient funds".to_string()));
+    }
+
+    #[test]
+    fn test_buy_property_already_owned() {
+        let mut game = GameState::new();
+        game.players.push(PlayerState {
+            id: "player1".to_string(),
+            name: "Player 1".to_string(),
+            money: 100_000,
+            position: 1,
+            color: "red".to_string(),
+            is_in_jail: false,
+            jail_turns: 0,
+            doubles_count: 0,
+            held_cards: Vec::new(),
+        });
+        game.players.push(PlayerState {
+            id: "player2".to_string(),
+            name: "Player 2".to_string(),
+            money: 100_000,
+            position: 1,
+            color: "blue".to_string(),
+            is_in_jail: false,
+            jail_turns: 0,
+            doubles_count: 0,
+            held_cards: Vec::new(),
+        });
+        game.phase = crate::game::state::GamePhase::EndTurn;
+
+        // Player 1 buys
+        assert!(handle_buy_property(&mut game, "player1").is_ok());
+
+        // Switch turn to Player 2
+        game.current_turn = 1;
+        game.phase = crate::game::state::GamePhase::EndTurn;
+
+        // Player 2 tries to buy
+        let result = handle_buy_property(&mut game, "player2");
+        assert_eq!(result, Err("Property already owned".to_string()));
+    }
 }

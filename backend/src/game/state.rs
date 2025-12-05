@@ -18,6 +18,7 @@ pub struct PlayerState {
     pub is_in_jail: bool,
     pub jail_turns: u8,
     pub doubles_count: u8,
+    pub held_cards: Vec<Card>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,6 +82,26 @@ impl GameState {
             total_houses: 32,
             total_hotels: 12,
             last_dice_roll: None,
+        }
+    }
+    
+    pub fn check_turn(&self, player_id: &str) -> Result<(), String> {
+        if let Some(player) = self.players.get(self.current_turn) {
+            if player.id == player_id {
+                Ok(())
+            } else {
+                Err("Not your turn".to_string())
+            }
+        } else {
+            Err("Current player not found".to_string())
+        }
+    }
+
+    pub fn check_phase(&self, expected: GamePhase) -> Result<(), String> {
+        if self.phase == expected {
+            Ok(())
+        } else {
+            Err(format!("Invalid phase. Expected {:?}, got {:?}", expected, self.phase))
         }
     }
 }

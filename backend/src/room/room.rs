@@ -68,6 +68,7 @@ impl Room {
                     is_in_jail: false,
                     jail_turns: 0,
                     doubles_count: 0,
+                    held_cards: Vec::new(),
                 });
             }
         }

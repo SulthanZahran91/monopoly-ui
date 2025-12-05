@@ -14,6 +14,7 @@ export interface PlayerState {
     is_in_jail: boolean;
     jail_turns: number;
     doubles_count: number;
+    held_cards: Card[];
 }
 
 export interface PropertyState {

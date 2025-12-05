@@ -1,7 +1,3 @@
-mod room;
-mod ws;
-mod game;
-
 use axum::{
     routing::{get, post},
     Router,
@@ -11,8 +7,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use crate::room::manager::RoomManager;
-use crate::ws::handler::ws_handler;
+use backend::room::manager::RoomManager;
+use backend::ws::handler::ws_handler;
 use serde::Deserialize;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 

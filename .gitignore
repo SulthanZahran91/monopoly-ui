@@ -27,5 +27,4 @@ bun.lockb
 logs/
 test_ws.js
 verify_game.js
-package.json
-bun.lock
+

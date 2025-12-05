@@ -23,6 +23,9 @@ interface GameStore {
     } | null;
     setVoteState: (state: GameStore['voteState']) => void;
 
+    lastDrawnCard: { card: Card; is_chance: boolean } | null;
+    setLastDrawnCard: (card: { card: Card; is_chance: boolean } | null) => void;
+
     currentCard: { card: Card; is_chance: boolean } | null;
     setCurrentCard: (card: { card: Card; is_chance: boolean } | null) => void;
 
@@ -51,6 +54,7 @@ export const useGameStore = create<GameStore>((set) => ({
     error: null,
     voteState: null,
     moneyAnimations: [],
+    lastDrawnCard: null,
     currentCard: null,
     activeTrades: [],
 
@@ -62,6 +66,7 @@ export const useGameStore = create<GameStore>((set) => ({
     setDice: (dice) => set({ dice }),
     setError: (error) => set({ error }),
     setVoteState: (voteState) => set({ voteState }),
+    setLastDrawnCard: (lastDrawnCard) => set({ lastDrawnCard }),
     setCurrentCard: (currentCard) => set({ currentCard }),
     addMoneyAnimation: (playerId, amount) => set((state) => ({
         moneyAnimations: [...state.moneyAnimations, { playerId, amount, id: Date.now() + Math.random() }]
@@ -79,6 +84,6 @@ export const useGameStore = create<GameStore>((set) => ({
         );
         return { gameState: { ...state.gameState, properties: updatedProperties } };
     }),
-    reset: () => set({ roomCode: null, playerId: null, players: [], gameState: null, dice: null, error: null, moneyAnimations: [], voteState: null, currentCard: null, activeTrades: [] }),
+    reset: () => set({ roomCode: null, playerId: null, players: [], gameState: null, dice: null, error: null, moneyAnimations: [], voteState: null, lastDrawnCard: null, currentCard: null, activeTrades: [] }),
 }));
 

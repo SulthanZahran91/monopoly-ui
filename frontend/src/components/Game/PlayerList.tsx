@@ -37,6 +37,15 @@ export const PlayerList = () => {
                                     <div className="text-green-400 font-mono text-sm">
                                         Rp {(p.money / 1000).toLocaleString()}k
                                     </div>
+                                    {p.held_cards && p.held_cards.length > 0 && (
+                                        <div className="flex gap-1 mt-1">
+                                            {p.held_cards.map((card, idx) => (
+                                                <span key={idx} className="text-xs bg-yellow-600 px-1.5 py-0.5 rounded text-white" title={card.title}>
+                                                    🎟️
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

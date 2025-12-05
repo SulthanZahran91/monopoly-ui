@@ -66,7 +66,9 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         // const wsUrl = `${protocol}//${host}/ws`;
 
         // Direct connection to backend to bypass Vite proxy issue
-        const wsUrl = 'ws://127.0.0.1:3000/ws';
+        const wsUrl = window.location.protocol === 'https:'
+            ? `wss://${window.location.host}/ws`
+            : `ws://${window.location.host}/ws`;
 
         logToServer('info', `Attempting WebSocket connection to ${wsUrl}`);
 

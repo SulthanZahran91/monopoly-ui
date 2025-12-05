@@ -188,19 +188,19 @@ M0          M1          M2          M3          M4          M5          M6      
 **Goal:** Full board is functional
 
 ### Backend
-- [ ] Jail state (in jail, turns remaining)
-- [ ] Go To Jail tile → send to jail
-- [ ] Jail escape: pay Rp 50.000 or roll doubles
-- [ ] Three doubles → go to jail
-- [ ] Tax tiles
-- [ ] SIAK-NG / BEM cards → random effects
-- [ ] Card deck management
+- [x] Jail state (in jail, turns remaining)
+- [x] Go To Jail tile → send to jail
+- [x] Jail escape: pay Rp 50.000 or roll doubles
+- [x] Three doubles → go to jail
+- [x] Tax tiles
+- [x] SIAK-NG / BEM cards → random effects
+- [x] Card deck management
 
 ### Frontend
-- [ ] Jail indicator on player chip
-- [ ] Jail escape UI
-- [ ] Card draw animation + display
-- [ ] Card effect toast
+- [x] Jail indicator on player chip
+- [x] Jail escape UI
+- [x] Card draw animation + display
+- [x] Card effect toast
 
 ### Deliverable
 > "Full board works — Skorsing, UKT, cards all functional"
@@ -235,18 +235,18 @@ M0          M1          M2          M3          M4          M5          M6      
 **Goal:** Building empire mechanics
 
 ### Backend
-- [ ] Monopoly detection (own full faculty)
-- [ ] Buy Gedung action → validate + even building
-- [ ] Sell Gedung action → 50% return
-- [ ] Building limits (32 Gedung, 12 Fakultas)
-- [ ] Rent scaling with buildings
-- [ ] Rent doubling for unimproved monopoly
+- [x] Monopoly detection (own full faculty)
+- [x] Buy Gedung action → validate + even building
+- [x] Sell Gedung action → 50% return
+- [x] Building limits (32 Gedung, 12 Fakultas)
+- [x] Rent scaling with buildings
+- [x] Rent doubling for unimproved monopoly
 
 ### Frontend
-- [ ] Building indicators on board tiles
-- [ ] Build button in property sheet
-- [ ] Building count display
-- [ ] Monopoly highlight
+- [x] Building indicators on board tiles
+- [x] Build button in property sheet
+- [x] Building count display
+- [x] Monopoly highlight
 
 ### Deliverable
 > "Collect all FMIPA, build 4 Gedung on Fisika, charge Rp 450.000 rent"

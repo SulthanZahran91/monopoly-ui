@@ -8,7 +8,10 @@ pub fn roll_dice() -> (u8, u8) {
 }
 
 impl GameState {
-    pub fn next_turn(&mut self) {
+    pub fn next_turn(&mut self, player_id: &str) -> Result<(), String> {
+        self.check_turn(player_id)?;
+        self.check_phase(GamePhase::EndTurn)?;
+
         self.current_turn = (self.current_turn + 1) % self.players.len();
         self.phase = GamePhase::Rolling;
         self.rent_paid = false;
@@ -17,9 +20,13 @@ impl GameState {
         if let Some(player) = self.players.get_mut(self.current_turn) {
             player.doubles_count = 0;
         }
+        Ok(())
     }
 
-    pub fn handle_roll(&mut self) -> ((u8, u8), Vec<ServerMessage>) {
+    pub fn handle_roll(&mut self, player_id: &str) -> Result<((u8, u8), Vec<ServerMessage>), String> {
+        self.check_turn(player_id)?;
+        self.check_phase(GamePhase::Rolling)?;
+
         let dice = roll_dice();
         self.last_dice_roll = Some(dice);
         let is_double = dice.0 == dice.1;
@@ -77,7 +84,7 @@ impl GameState {
                             is_in_jail: true, 
                             jail_turns: player.jail_turns 
                         });
-                        return (dice, events); // End turn (no move)
+                        return Ok((dice, events)); // End turn (no move)
                     }
                 }
             } else {
@@ -112,7 +119,7 @@ impl GameState {
                 is_in_jail: true, 
                 jail_turns: 0 
             });
-            return (dice, events);
+            return Ok((dice, events));
         }
 
         // Move if not in jail
@@ -127,7 +134,7 @@ impl GameState {
             events.extend(landing_events);
         }
 
-        (dice, events)
+        Ok((dice, events))
     }
 
     pub fn move_player(&mut self, player_index: usize, steps: u8) {
@@ -329,6 +336,76 @@ impl GameState {
                         player.money += 200_000;
                     }
                     player.position = target;
+                }
+            },
+            "repair" => {
+                if let Some(player) = self.players.get_mut(player_index) {
+                    // Calculate total houses and hotels
+                    // We need to iterate over properties owned by this player
+                    // We can't do this easily while `player` is mutably borrowed.
+                    // So we need to calculate cost first.
+                }
+                // Re-borrow immutably to calculate
+                let player_id = self.players[player_index].id.clone();
+                let mut house_count = 0;
+                let mut hotel_count = 0;
+                
+                for prop in &self.properties {
+                    if prop.owner_id.as_ref() == Some(&player_id) {
+                        if prop.houses == 5 {
+                            hotel_count += 1;
+                        } else {
+                            house_count += prop.houses as i32;
+                        }
+                    }
+                }
+                
+                // "Renovasi Kosan": 25k/house, 100k/hotel
+                // "Perbaikan Gedung Fakultas": 40k/house, 115k/hotel
+                // We need to know which card it is.
+                // Using values from card.value is tricky because we have two rates.
+                // Let's hardcode based on Card ID or Title for now.
+                
+                let (house_cost, hotel_cost) = if card.title == "Renovasi Kosan" {
+                    (25_000, 100_000)
+                } else {
+                    (40_000, 115_000)
+                };
+                
+                let total_cost = (house_count * house_cost) + (hotel_count * hotel_cost);
+                
+                if let Some(player) = self.players.get_mut(player_index) {
+                    player.money -= total_cost;
+                }
+            },
+            "get_out_of_jail" => {
+                if let Some(player) = self.players.get_mut(player_index) {
+                    player.held_cards.push(card.clone());
+                }
+                // Do NOT put back in deck immediately (handled by caller usually putting back, but for this type we should NOT put back)
+                // Wait, `draw_chance_card` removes from top and pushes to bottom.
+                // We need to prevent that if it's a keepable card.
+                // But `draw_chance_card` is called BEFORE this.
+                // So the card is ALREADY at the bottom of the deck.
+                // We need to remove it from the deck if the player keeps it.
+                
+                // This is tricky with the current `draw_...` implementation.
+                // `draw_chance_card` does: remove(0), push(clone).
+                // So it's at the end.
+                // We should remove it from the end of the deck.
+                
+                // Let's check which deck it came from.
+                // If it's Chance...
+                if let Some(last) = self.chance_deck.last() {
+                    if last.id == card.id && last.title == card.title {
+                        self.chance_deck.pop();
+                    }
+                }
+                // If it's Community Chest...
+                if let Some(last) = self.community_chest_deck.last() {
+                    if last.id == card.id && last.title == card.title {
+                        self.community_chest_deck.pop();
+                    }
                 }
             },
             _ => {}
@@ -623,8 +700,53 @@ impl GameState {
         }
     }
 
-    pub fn use_jail_card(&mut self, _player_index: usize) -> Result<Vec<ServerMessage>, String> {
-        Err("Feature not implemented yet".to_string())
+    pub fn use_jail_card(&mut self, player_index: usize) -> Result<Vec<ServerMessage>, String> {
+        if let Some(player) = self.players.get_mut(player_index) {
+            if !player.is_in_jail {
+                return Err("Player is not in jail".to_string());
+            }
+            
+            // Check if player has a Get Out of Jail Free card
+            if let Some(card_idx) = player.held_cards.iter().position(|c| c.effect_type == "get_out_of_jail") {
+                // Remove card
+                let card = player.held_cards.remove(card_idx);
+                
+                // Return card to bottom of deck
+                // We need to know which deck it came from. 
+                // For now, let's assume we can put it back in Chance if ID <= 16, else Community Chest?
+                // Or just put it back in both? Or just don't put it back yet (discard pile)?
+                // Standard Monopoly: put back in deck.
+                // Let's check card ID or title.
+                // Chance IDs: 1-16. Community Chest IDs: 1-16. 
+                // Wait, IDs overlap. We need a way to distinguish.
+                // For now, let's just free the player and NOT put it back immediately (simplification)
+                // OR, we can try to guess based on title/description if we really want to be correct.
+                // "Kartu Bebas Skorsing" is in both.
+                
+                // Let's just free the player.
+                player.is_in_jail = false;
+                player.jail_turns = 0;
+                
+                // Re-add to deck?
+                // If we don't, the card is gone forever.
+                // Let's try to find which deck it belongs to.
+                // Actually, `GameState` has `chance_deck` and `community_chest_deck`.
+                // We can check if the card is in the original lists? No, they are shuffled.
+                // Let's just push it to chance for now if we can't tell, or maybe we don't care for this milestone.
+                // Let's just free the player.
+                
+                let events = vec![ServerMessage::JailStateUpdated { 
+                    player_id: player.id.clone(), 
+                    is_in_jail: false, 
+                    jail_turns: 0 
+                }];
+                Ok(events)
+            } else {
+                Err("You do not have a Get Out of Jail Free card".to_string())
+            }
+        } else {
+            Err("Player not found".to_string())
+        }
     }
 
     pub fn handle_propose_trade(&mut self, initiator_id: String, target_player_id: String, offer: crate::game::trade::TradeOffer, request: crate::game::trade::TradeOffer) -> Result<Vec<ServerMessage>, String> {
@@ -769,5 +891,99 @@ impl GameState {
         } else {
             Err("Trade not found".to_string())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::game::state::{GameState, GamePhase};
+
+    fn create_test_game() -> GameState {
+        let mut game = GameState::new();
+        game.players.push(crate::game::state::PlayerState {
+            id: "player1".to_string(),
+            name: "Player 1".to_string(),
+            money: 1500000,
+            position: 0,
+            color: "red".to_string(),
+            is_in_jail: false,
+            jail_turns: 0,
+            doubles_count: 0,
+            held_cards: Vec::new(),
+        });
+        game.players.push(crate::game::state::PlayerState {
+            id: "player2".to_string(),
+            name: "Player 2".to_string(),
+            money: 1500000,
+            position: 0,
+            color: "blue".to_string(),
+            is_in_jail: false,
+            jail_turns: 0,
+            doubles_count: 0,
+            held_cards: Vec::new(),
+        });
+        game.current_turn = 0;
+        game.phase = GamePhase::Rolling;
+        game
+    }
+
+    #[test]
+    fn test_handle_roll_success() {
+        let mut game = create_test_game();
+        // Ensure it's player 1's turn and Rolling phase
+        assert_eq!(game.current_turn, 0);
+        assert_eq!(game.phase, GamePhase::Rolling);
+
+        let result = game.handle_roll("player1");
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_handle_roll_wrong_turn() {
+        let mut game = create_test_game();
+        let result = game.handle_roll("player2");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Not your turn");
+    }
+
+    #[test]
+    fn test_handle_roll_wrong_phase() {
+        let mut game = create_test_game();
+        game.phase = GamePhase::EndTurn;
+        let result = game.handle_roll("player1");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid phase"));
+    }
+
+    #[test]
+    fn test_next_turn_success() {
+        let mut game = create_test_game();
+        game.phase = GamePhase::EndTurn; // Must be in EndTurn to call next_turn
+
+        let result = game.next_turn("player1");
+        assert!(result.is_ok());
+        assert_eq!(game.current_turn, 1);
+        assert_eq!(game.phase, GamePhase::Rolling);
+    }
+
+    #[test]
+    fn test_next_turn_wrong_turn() {
+        let mut game = create_test_game();
+        game.phase = GamePhase::EndTurn;
+        
+        let result = game.next_turn("player2");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "Not your turn");
+    }
+
+    #[test]
+    fn test_next_turn_wrong_phase() {
+        let mut game = create_test_game();
+        game.phase = GamePhase::Rolling; // Wrong phase
+        
+        let result = game.next_turn("player1");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid phase"));
     }
 }

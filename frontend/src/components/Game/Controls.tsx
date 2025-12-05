@@ -74,23 +74,10 @@ export const Controls = () => {
             <div className="flex flex-wrap gap-2">
                 {currentPlayer.is_in_jail && isMyTurn ? (
                     <>
-                        <div className="w-full text-red-400 font-bold mb-2">You are in Jail!</div>
-                        <button
-                            onClick={() => sendMessage({ type: 'PayBail' })}
-                            disabled={currentPlayer.money < 50000}
-                            className={`px-6 py-3 rounded-lg font-bold transition-colors ${currentPlayer.money >= 50000
-                                ? 'bg-red-500 hover:bg-red-600 text-white'
-                                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                }`}
-                        >
-                            Pay Bail (Rp 50k)
-                        </button>
-                        <button
-                            onClick={() => sendMessage({ type: 'RollDice' })}
-                            className="px-6 py-3 rounded-lg font-bold transition-colors bg-yellow-500 hover:bg-yellow-600 text-black"
-                        >
-                            Roll Doubles
-                        </button>
+                        <div className="w-full bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-lg text-center">
+                            <div className="font-bold text-lg mb-1">You are in Skorsing!</div>
+                            <div className="text-sm">Please use the options in the modal to get out.</div>
+                        </div>
                     </>
                 ) : (
                     <>

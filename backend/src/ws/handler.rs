@@ -104,26 +104,36 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                                 if let Some(state) = &mut room.game_state {
                                                     let current_player_idx = state.current_turn;
                                                     if let Some(player) = state.players.get(current_player_idx) {
-                                                        if &player.id == player_id && state.phase == GamePhase::Rolling {
-                                                            let (dice, events) = state.handle_roll();
-                                                            
-                                                            let response = ServerMessage::DiceRolled { 
-                                                                dice, 
-                                                                state: state.clone() 
-                                                            };
-                                                            let _ = tx.send(response);
-                                                            
-                                                            let events_occurred = !events.is_empty();
-                                                            for event in events {
-                                                                let _ = tx.send(event);
-                                                            }
+                                                        match state.handle_roll(player_id) {
+                                                            Ok((dice, events)) => {
+                                                                let response = ServerMessage::DiceRolled { 
+                                                                    dice, 
+                                                                    state: state.clone() 
+                                                                };
+                                                                let _ = tx.send(response);
+                                                                
+                                                                let events_occurred = !events.is_empty();
+                                                                for event in events {
+                                                                    let _ = tx.send(event);
+                                                                }
 
-                                                            if state.phase == GamePhase::Rolling {
-                                                                state.phase = GamePhase::EndTurn;
+                                                                let is_doubles = dice.0 == dice.1;
+                                                                // If sent to jail, phase is already EndTurn (set by send_to_jail called in handle_roll)
+                                                                // If not sent to jail, we are in Rolling.
+                                                                if state.phase == GamePhase::Rolling {
+                                                                    if !is_doubles {
+                                                                        state.phase = GamePhase::EndTurn;
+                                                                    }
+                                                                    // If doubles, stay in Rolling
+                                                                }
+                                                                
+                                                                if events_occurred {
+                                                                    let _ = tx.send(ServerMessage::GameStateUpdate { state: state.clone() });
+                                                                }
                                                             }
-                                                            
-                                                            if events_occurred {
-                                                                let _ = tx.send(ServerMessage::GameStateUpdate { state: state.clone() });
+                                                            Err(e) => {
+                                                                let response = ServerMessage::Error { message: e };
+                                                                let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
                                                             }
                                                         }
                                                     }
@@ -279,6 +289,7 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                     }
                                     ClientMessage::BuyProperty => {
                                         if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            tracing::info!("Received BuyProperty request from player {} in room {}", player_id, room_code);
                                             if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
                                                 if let Some(state) = &mut room.game_state {
                                                     match crate::game::actions::handle_buy_property(state, player_id) {
@@ -319,13 +330,17 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                                 if let Some(state) = &mut room.game_state {
                                                     let current_player_idx = state.current_turn;
                                                     if let Some(player) = state.players.get(current_player_idx) {
-                                                        if &player.id == player_id && state.phase == GamePhase::EndTurn {
-                                                            state.next_turn();
-                                                            
-                                                            let response = ServerMessage::TurnEnded { 
-                                                                state: state.clone() 
-                                                            };
-                                                            let _ = room.tx.send(response);
+                                                        match state.next_turn(player_id) {
+                                                            Ok(_) => {
+                                                                let response = ServerMessage::TurnEnded { 
+                                                                    state: state.clone() 
+                                                                };
+                                                                let _ = room.tx.send(response);
+                                                            }
+                                                            Err(e) => {
+                                                                let response = ServerMessage::Error { message: e };
+                                                                let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+                                                            }
                                                         }
                                                     }
                                                 }
