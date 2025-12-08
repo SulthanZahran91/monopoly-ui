@@ -341,6 +341,26 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                             }
                                         }
                                     }
+                                    ClientMessage::DeclareBankruptcy { creditor_id } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    tracing::info!(
+                                                        "[FSM] DeclareBankruptcy: player_id={}, creditor_id={:?}",
+                                                        player_id, creditor_id
+                                                    );
+                                                    let events = state.handle_bankruptcy(
+                                                        player_id,
+                                                        creditor_id.as_deref()
+                                                    );
+                                                    for event in events {
+                                                        let _ = tx.send(event);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                     ClientMessage::BuyProperty => {
                                         if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
                                             tracing::info!("Received BuyProperty request from player {} in room {}", player_id, room_code);
@@ -363,11 +383,31 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                     ClientMessage::PayRent => {
                                         if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
                                             if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
                                                 if let Some(state) = &mut room.game_state {
                                                     match crate::game::actions::handle_pay_rent(state, player_id) {
-                                                        Ok(_) => {
-                                                            let response = ServerMessage::GameStateUpdate { state: state.clone() };
-                                                            let _ = room.tx.send(response);
+                                                        Ok(result) => {
+                                                            use crate::game::actions::PayRentResult;
+                                                            match result {
+                                                                PayRentResult::Success => {
+                                                                    let response = ServerMessage::GameStateUpdate { state: state.clone() };
+                                                                    let _ = tx.send(response);
+                                                                }
+                                                                PayRentResult::BankruptcyRequired { creditor_id, rent_owed } => {
+                                                                    tracing::info!(
+                                                                        "[FSM] PayRent: AUTO-BANKRUPTCY - player_id={}, creditor_id={}, rent_owed={}",
+                                                                        player_id, creditor_id, rent_owed
+                                                                    );
+                                                                    // Auto-trigger bankruptcy - assets transfer to creditor
+                                                                    let events = state.handle_bankruptcy(
+                                                                        player_id,
+                                                                        Some(&creditor_id)
+                                                                    );
+                                                                    for event in events {
+                                                                        let _ = tx.send(event);
+                                                                    }
+                                                                }
+                                                            }
                                                         }
                                                         Err(e) => {
                                                             let response = ServerMessage::Error { message: e };

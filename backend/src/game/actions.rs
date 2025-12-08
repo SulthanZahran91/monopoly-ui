@@ -54,7 +54,15 @@ pub fn handle_buy_property(game: &mut GameState, player_id: &str) -> Result<(), 
     Ok(())
 }
 
-pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), String> {
+/// Result of a pay rent attempt
+pub enum PayRentResult {
+    /// Rent paid successfully
+    Success,
+    /// Player cannot pay - bankruptcy required. Contains creditor_id and rent amount.
+    BankruptcyRequired { creditor_id: String, rent_owed: i32 },
+}
+
+pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<PayRentResult, String> {
     // 0. Check state
     tracing::info!(
         "[FSM] handle_pay_rent: START - player_id={}, current_turn={}, phase={:?}",
@@ -98,13 +106,16 @@ pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), Stri
         player_pos, dice_sum, rent, owner_id
     );
     
-    // 5. Check funds
+    // 5. Check funds - if insufficient, return bankruptcy required
     if game.players[player_idx].money < rent {
         tracing::warn!(
-            "[FSM] handle_pay_rent: FAIL - insufficient funds, money={}, rent={}",
-            game.players[player_idx].money, rent
+            "[FSM] handle_pay_rent: BANKRUPTCY REQUIRED - player_id={}, money={}, rent={}, creditor={}",
+            player_id, game.players[player_idx].money, rent, owner_id
         );
-        return Err("Insufficient funds".to_string()); // In future: bankruptcy logic
+        return Ok(PayRentResult::BankruptcyRequired { 
+            creditor_id: owner_id.clone(), 
+            rent_owed: rent 
+        });
     }
     
     // 6. Transfer money
@@ -121,7 +132,7 @@ pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), Stri
         player_id, player_pos, rent, owner_id
     );
 
-    Ok(())
+    Ok(PayRentResult::Success)
 }
 
 #[cfg(test)]

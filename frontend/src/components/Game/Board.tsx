@@ -102,6 +102,20 @@ export const Board: React.FC<BoardProps> = ({ onTileClick }) => {
                                 )}
                             </div>
                         )}
+
+                        {/* Mortgaged Property Overlay */}
+                        {propertyState?.is_mortgaged && (
+                            <div
+                                className="absolute inset-0 bg-gray-500/60 flex items-center justify-center z-20 pointer-events-none"
+                                title="Cuti Akademik (Mortgaged)"
+                            >
+                                <span
+                                    className="text-[8px] font-black text-white bg-red-600 px-1 py-0.5 rotate-[-35deg] shadow-md"
+                                >
+                                    CUTI
+                                </span>
+                            </div>
+                        )}
                         {/* Fallback for non-property tiles or if no owner/buildings, still show group color if applicable */}
                         {tileInfo?.type !== 'Property' && tileInfo?.group && (
                             <div className={`h-3 w-full shrink-0 ${getGroupColor(tileInfo.group)}`} />

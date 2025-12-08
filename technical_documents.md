@@ -154,6 +154,22 @@ interface GameStore {
    - Player sends `EndTurn`.
    - Server increments `current_turn`, broadcasts `TurnEnded`.
 
+### Bankruptcy Flow
+1. **Trigger:** When `PayRent` is sent and player has insufficient funds.
+2. **Detection:** `handle_pay_rent` returns `PayRentResult::BankruptcyRequired { creditor_id, rent_owed }`.
+3. **Execution:** Handler calls `handle_bankruptcy(player_id, Some(&creditor_id))`.
+4. **Assets Transfer:** All properties transfer to creditor (mortgages remain).
+5. **Player Removal:** Bankrupt player removed from game.
+6. **Victory Check:** If only 1 player left, `check_victory()` sets `phase = GameOver`.
+7. **Broadcast:** `PlayerBankrupt`, `GameOver` (if applicable), `GameStateUpdate` sent to all clients.
+
+### Mortgage Flow
+1. Player clicks "Cuti Akademik" in PropertyModal.
+2. Frontend sends `MortgageProperty { property_id }`.
+3. Backend validates ownership and no buildings, sets `is_mortgaged = true`.
+4. Player receives 50% of property price.
+5. Board shows "CUTI" overlay on tile.
+
 ---
 
 ## 7. Next Steps for Agents

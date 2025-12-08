@@ -258,20 +258,20 @@ M0          M1          M2          M3          M4          M5          M6      
 **Goal:** Games can actually end
 
 ### Backend
-- [ ] Bankruptcy detection
-- [ ] Bankruptcy to Rektorat → properties return unowned
-- [ ] Bankruptcy to player → assets transfer
-- [ ] Cuti Akademik (mortgage) → get 50% cash
-- [ ] Aktif Kembali (unmortgage) → pay 110%
-- [ ] Victory condition (last player standing)
-- [ ] Game over state
+- [x] Bankruptcy detection
+- [x] Bankruptcy to Rektorat → properties return unowned
+- [x] Bankruptcy to player → assets transfer
+- [x] Cuti Akademik (mortgage) → get 50% cash
+- [x] Aktif Kembali (unmortgage) → pay 110%
+- [x] Victory condition (last player standing)
+- [x] Game over state
 
 ### Frontend
-- [ ] Drop Out modal
-- [ ] Cuti Akademik button in property sheet
-- [ ] Cuti indicator on board
-- [ ] Game over screen (winner + standings)
-- [ ] Play again button
+- [x] Drop Out modal (auto-triggered via PayRent when can't afford)
+- [x] Cuti Akademik button in property sheet
+- [x] Cuti indicator on board
+- [x] Game over screen (winner + standings)
+- [x] Play again button
 
 ### Deliverable
 > "Friend goes DO paying your rent, you win, everyone sees final standings"
