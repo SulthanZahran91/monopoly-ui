@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use crate::room::player::Player;
-use crate::game::state::{GameState, PlayerState};
+use crate::game::state::GameState;
 use crate::game::state::Card;
 use crate::game::trade::{TradeProposal, TradeOffer};
 

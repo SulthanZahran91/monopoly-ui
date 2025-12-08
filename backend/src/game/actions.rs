@@ -78,7 +78,7 @@ pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<PayRentR
     let player_pos = game.players[player_idx].position;
     
     // 2. Get property info and state
-    let property_info = get_property(player_pos).ok_or("Not a property")?;
+    let _property_info = get_property(player_pos).ok_or("Not a property")?;
     let property_state = game.properties.iter().find(|p| p.id == player_pos)
         .ok_or("Property state not found")?;
         

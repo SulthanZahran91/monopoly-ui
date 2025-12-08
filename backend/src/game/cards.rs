@@ -1,12 +1,12 @@
 use crate::game::state::Card;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::rng;
 
 pub fn initialize_decks() -> (Vec<Card>, Vec<Card>) {
     let mut chance = create_chance_deck();
     let mut community_chest = create_community_chest_deck();
 
-    let mut rng = thread_rng();
+    let mut rng = rng();
     chance.shuffle(&mut rng);
     community_chest.shuffle(&mut rng);
 

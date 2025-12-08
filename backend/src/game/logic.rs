@@ -38,7 +38,7 @@ impl GameState {
     }
 
     pub fn handle_roll(&mut self, player_id: &str) -> Result<((u8, u8), Vec<ServerMessage>), String> {
-        let old_phase = self.phase.clone();
+        let _old_phase = self.phase.clone();
         
         tracing::info!(
             "[FSM] handle_roll: START - player_id={}, current_turn={}, phase={:?}",
@@ -70,16 +70,11 @@ impl GameState {
                         is_in_jail: false, 
                         jail_turns: 0 
                     });
-                    // Move immediately
-                    let steps = dice.0 + dice.1;
-                    // We need to drop the mutable borrow to call move_player
+                    // Move after exiting jail via doubles
                 } else {
                     player.jail_turns += 1;
                     if player.jail_turns >= 3 {
-                        // Forced bail (if implemented, deduct money and move)
-                        // For now, just stay in jail
-                        // Or maybe auto-pay 50k if they have it?
-                        // Plan says: "3 turns in Jail -> Verify forced bail/release"
+                        // Forced bail after 3 turns - pay 50k and release
                         if player.money >= 50_000 {
                             player.money -= 50_000;
                             player.is_in_jail = false;
@@ -89,12 +84,8 @@ impl GameState {
                                 is_in_jail: false, 
                                 jail_turns: 0 
                             });
-                            // Move will happen below
                         } else {
-                            // Bankrupt? Or just stay?
-                            // Standard rules: must pay. If can't, bankrupt.
-                            // For simplicity, let's just release them for now or keep them.
-                            // Let's release them and put into debt if needed.
+                            // Cannot afford bail - release into debt
                              player.money -= 50_000;
                              player.is_in_jail = false;
                              player.jail_turns = 0;
@@ -121,10 +112,7 @@ impl GameState {
                 }
 
                 if player.doubles_count >= 3 {
-                    // Go to jail
-                    // We need to handle this carefully.
-                    // We can't call send_to_jail here easily because of borrow checker if we want to use self methods.
-                    // But we can set flags.
+                    // Third consecutive doubles - will be sent to jail after reborrow
                 }
             }
         }
@@ -380,12 +368,7 @@ impl GameState {
                 }
             },
             "repair" => {
-                if let Some(player) = self.players.get_mut(player_index) {
-                    // Calculate total houses and hotels
-                    // We need to iterate over properties owned by this player
-                    // We can't do this easily while `player` is mutably borrowed.
-                    // So we need to calculate cost first.
-                }
+                // Calculate repair costs based on buildings owned
                 // Re-borrow immutably to calculate
                 let player_id = self.players[player_index].id.clone();
                 let mut house_count = 0;
@@ -401,11 +384,7 @@ impl GameState {
                     }
                 }
                 
-                // "Renovasi Kosan": 25k/house, 100k/hotel
-                // "Perbaikan Gedung Fakultas": 40k/house, 115k/hotel
-                // We need to know which card it is.
-                // Using values from card.value is tricky because we have two rates.
-                // Let's hardcode based on Card ID or Title for now.
+                // Determine repair rate based on card type
                 
                 let (house_cost, hotel_cost) = if card.title == "Renovasi Kosan" {
                     (25_000, 100_000)
@@ -423,19 +402,7 @@ impl GameState {
                 if let Some(player) = self.players.get_mut(player_index) {
                     player.held_cards.push(card.clone());
                 }
-                // Do NOT put back in deck immediately (handled by caller usually putting back, but for this type we should NOT put back)
-                // Wait, `draw_chance_card` removes from top and pushes to bottom.
-                // We need to prevent that if it's a keepable card.
-                // But `draw_chance_card` is called BEFORE this.
-                // So the card is ALREADY at the bottom of the deck.
-                // We need to remove it from the deck if the player keeps it.
-                
-                // This is tricky with the current `draw_...` implementation.
-                // `draw_chance_card` does: remove(0), push(clone).
-                // So it's at the end.
-                // We should remove it from the end of the deck.
-                
-                // Let's check which deck it came from.
+                // Remove card from deck (it was pushed to bottom by draw function)
                 // If it's Chance...
                 if let Some(last) = self.chance_deck.last() {
                     if last.id == card.id && last.title == card.title {
@@ -875,32 +842,13 @@ impl GameState {
             
             // Check if player has a Get Out of Jail Free card
             if let Some(card_idx) = player.held_cards.iter().position(|c| c.effect_type == "get_out_of_jail") {
-                // Remove card
-                let card = player.held_cards.remove(card_idx);
+                // Remove the card from player's hand
+                let _card = player.held_cards.remove(card_idx);
                 
-                // Return card to bottom of deck
-                // We need to know which deck it came from. 
-                // For now, let's assume we can put it back in Chance if ID <= 16, else Community Chest?
-                // Or just put it back in both? Or just don't put it back yet (discard pile)?
-                // Standard Monopoly: put back in deck.
-                // Let's check card ID or title.
-                // Chance IDs: 1-16. Community Chest IDs: 1-16. 
-                // Wait, IDs overlap. We need a way to distinguish.
-                // For now, let's just free the player and NOT put it back immediately (simplification)
-                // OR, we can try to guess based on title/description if we really want to be correct.
-                // "Kartu Bebas Skorsing" is in both.
-                
-                // Let's just free the player.
+                // Free the player from jail
+                // Note: Card is not returned to deck (simplification)
                 player.is_in_jail = false;
                 player.jail_turns = 0;
-                
-                // Re-add to deck?
-                // If we don't, the card is gone forever.
-                // Let's try to find which deck it belongs to.
-                // Actually, `GameState` has `chance_deck` and `community_chest_deck`.
-                // We can check if the card is in the original lists? No, they are shuffled.
-                // Let's just push it to chance for now if we can't tell, or maybe we don't care for this milestone.
-                // Let's just free the player.
                 
                 let events = vec![ServerMessage::JailStateUpdated { 
                     player_id: player.id.clone(), 
@@ -940,10 +888,8 @@ impl GameState {
             }
         }
 
-        // Validate ownership of requested items
-        let target = self.players.iter().find(|p| p.id == target_player_id).unwrap();
-        // We don't strictly enforce target has money NOW, but we check on accept.
-        // But for properties, we should check they own them.
+        // Validate target owns requested properties
+        let _target = self.players.iter().find(|p| p.id == target_player_id).unwrap();
         for prop_id in &request.property_ids {
             if let Some(prop) = self.properties.iter().find(|p| p.id == *prop_id) {
                 if prop.owner_id.as_ref() != Some(&target_player_id) {
@@ -1063,7 +1009,6 @@ impl GameState {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::game::state::{GameState, GamePhase};
 
     fn create_test_game() -> GameState {

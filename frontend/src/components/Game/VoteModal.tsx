@@ -24,23 +24,7 @@ export const VoteModal = () => {
     const targetPlayer = players.find(p => p.id === voteState.target_player_id);
     const initiator = players.find(p => p.id === voteState.initiator_id);
 
-    // Check if I have already voted
-    // Wait, the backend doesn't send who voted what to everyone, only counts.
-    // But I should track if I voted locally? Or just let me change vote?
-    // The backend uses HashSet, so multiple votes from same person just update/overwrite.
-    // But wait, my backend logic:
-    // if vote: insert into votes_for, remove from votes_against
-    // So yes, I can change vote.
-
-    // However, for UI, I don't know if I voted YES or NO unless I track it or backend sends it.
-    // Backend sends `votes_for` count.
-    // Let's just show buttons always.
-
-    // Don't show modal to the target?
-    // Plan said: "A player is kicked if >50% of remaining players vote YES."
-    // Usually target sees it but can't vote or their vote doesn't matter.
-    // My backend logic lets everyone vote.
-
+    // Target player sees the modal but cannot vote
     const isTarget = playerId === voteState.target_player_id;
 
     return (

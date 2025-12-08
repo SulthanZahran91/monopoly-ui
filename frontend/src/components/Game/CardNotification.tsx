@@ -2,19 +2,6 @@ import React, { useEffect } from 'react';
 import { useGameStore } from '../../store';
 
 export const CardNotification: React.FC = () => {
-    // We need a way to detect when a card is drawn.
-    // The store doesn't explicitly have "last drawn card" in a way that persists for animation easily,
-    // but we can listen to WebSocket messages or add it to the store.
-    // For now, let's assume we can't easily hook into the WS stream here without context.
-    // BUT, we can add `lastDrawnCard` to the Zustand store.
-    // Let's check store.ts first.
-
-    // Actually, I'll just make this a placeholder for now or check store.ts.
-    // If I can't modify store easily right now, I might skip this or implement it later.
-    // But the plan said "CardNotification".
-
-    // Let's assume we will modify store.ts to include `lastDrawnCard`.
-
     const { lastDrawnCard, setLastDrawnCard } = useGameStore();
 
     useEffect(() => {

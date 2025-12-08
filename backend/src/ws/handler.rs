@@ -8,7 +8,6 @@ use std::sync::Arc;
 use tokio::sync::broadcast;
 use crate::room::manager::RoomManager;
 use crate::ws::messages::{ClientMessage, ServerMessage};
-use crate::game::logic::roll_dice;
 use crate::game::state::GamePhase;
 
 #[tracing::instrument(skip(ws, room_manager))]
@@ -103,7 +102,7 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                                 let tx = room.tx.clone();
                                                 if let Some(state) = &mut room.game_state {
                                                     let current_player_idx = state.current_turn;
-                                                    if let Some(player) = state.players.get(current_player_idx) {
+                                                    if let Some(_player) = state.players.get(current_player_idx) {
                                                         match state.handle_roll(player_id) {
                                                             Ok((dice, events)) => {
                                                                 let is_doubles = dice.0 == dice.1;
@@ -184,7 +183,30 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                         }
                                     }
                                     ClientMessage::UseJailCard => {
-                                        // Not implemented yet
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    let current_player_idx = state.current_turn;
+                                                    if let Some(player) = state.players.get(current_player_idx) {
+                                                        if &player.id == player_id {
+                                                            match state.use_jail_card(current_player_idx) {
+                                                                Ok(events) => {
+                                                                    for event in events {
+                                                                        let _ = tx.send(event);
+                                                                    }
+                                                                    let _ = tx.send(ServerMessage::GameStateUpdate { state: state.clone() });
+                                                                }
+                                                                Err(e) => {
+                                                                    let response = ServerMessage::Error { message: e };
+                                                                    let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                     ClientMessage::ProposeTrade { target_player_id, offer, request } => {
                                         if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
@@ -423,7 +445,7 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                             if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
                                                 if let Some(state) = &mut room.game_state {
                                                     let current_player_idx = state.current_turn;
-                                                    if let Some(player) = state.players.get(current_player_idx) {
+                                                    if let Some(_player) = state.players.get(current_player_idx) {
                                                         match state.next_turn(player_id) {
                                                             Ok(_) => {
                                                                 let response = ServerMessage::TurnEnded { 

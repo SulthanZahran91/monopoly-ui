@@ -3,6 +3,7 @@ import { Landing } from './components/Landing';
 import { Lobby } from './components/Lobby';
 import { Game } from './components/Game';
 import { WebSocketProvider } from './context/WebSocketContext';
+import { useWebSocket } from './hooks/useWebSocket';
 
 function App() {
   const { roomCode, gameState, error } = useGameStore();
@@ -19,8 +20,6 @@ function App() {
     </WebSocketProvider>
   );
 }
-
-import { useWebSocket } from './hooks/useWebSocket';
 
 const ConnectionStatus = () => {
   const { isConnected } = useWebSocket();

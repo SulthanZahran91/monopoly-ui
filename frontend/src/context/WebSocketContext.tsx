@@ -144,35 +144,22 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                     }
                     case 'PlayerKicked':
                         setVoteState(null);
-                        // Also remove player from local list if not already handled by GameStateUpdate?
-                        // Backend sends PlayerKicked, but logic.rs removes player from GameState.
-                        // However, room.rs removes player from Room.
-                        // Does backend send GameStateUpdate after kick?
-                        // In handler.rs:
-                        // game_state.remove_player(&target_id);
-                        // room.remove_player(&target_id);
-                        // room.tx.send(PlayerKicked)
-                        // It does NOT send GameStateUpdate explicitly.
-                        // So we should probably request update or manually remove.
-                        // Or better, backend should send GameStateUpdate.
-                        // But for now, let's just remove from local players list if we can, or rely on next update.
-                        // Actually, let's just handle it by removing from players list in store if we had a setPlayers, 
-                        // but we only have setPlayers for full list.
-                        // We can fetch or just wait.
-                        // Wait, if I am kicked, I should know.
+                        // Handle if current user is kicked
                         if (message.player_id === useGameStore.getState().playerId) {
                             setError('You have been kicked from the room.');
-                            setRoomCode(null as any); // Reset or redirect
+                            setRoomCode(null as any);
                             setGameState(null as any);
                         } else {
-                            // Remove from players list
+                            // Remove kicked player from local list
                             const currentPlayers = useGameStore.getState().players;
                             setPlayers(currentPlayers.filter(p => p.id !== message.player_id));
                         }
                         break;
                     case 'VoteFailed':
                         setVoteState(null);
-                        // Maybe show toast?
+                        break;
+                    case 'TradeProposed':
+                        useGameStore.getState().addTrade(message.proposal);
                         break;
                     case 'TradeCancelled':
                         removeTrade(message.trade_id);

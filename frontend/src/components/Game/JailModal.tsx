@@ -13,9 +13,6 @@ export const JailModal: React.FC = () => {
         return null;
     }
 
-    // If we are in Rolling phase and in jail, we show this modal instead of normal controls?
-    // Or maybe this modal is always visible when it's my turn and I'm in jail.
-
     const hasJailCard = me.held_cards.some(c => c.effect_type === 'get_out_of_jail');
 
     return (
