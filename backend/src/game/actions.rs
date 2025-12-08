@@ -3,6 +3,11 @@ use crate::game::board::get_property;
 
 pub fn handle_buy_property(game: &mut GameState, player_id: &str) -> Result<(), String> {
     // 0. Check state
+    tracing::info!(
+        "[FSM] handle_buy_property: START - player_id={}, current_turn={}, phase={:?}",
+        player_id, game.current_turn, game.phase
+    );
+    
     game.check_turn(player_id)?;
     game.check_phase(crate::game::state::GamePhase::EndTurn)?;
 
@@ -21,11 +26,19 @@ pub fn handle_buy_property(game: &mut GameState, player_id: &str) -> Result<(), 
         .ok_or("Property state not found")?;
         
     if property_state.owner_id.is_some() {
+        tracing::warn!(
+            "[FSM] handle_buy_property: FAIL - property already owned, position={}",
+            position
+        );
         return Err("Property already owned".to_string());
     }
     
     // 5. Check funds
     if game.players[player_idx].money < property_info.price {
+        tracing::warn!(
+            "[FSM] handle_buy_property: FAIL - insufficient funds, money={}, price={}",
+            game.players[player_idx].money, property_info.price
+        );
         return Err("Insufficient funds".to_string());
     }
     
@@ -33,11 +46,21 @@ pub fn handle_buy_property(game: &mut GameState, player_id: &str) -> Result<(), 
     game.players[player_idx].money -= property_info.price;
     property_state.owner_id = Some(player_id.to_string());
     
+    tracing::info!(
+        "[FSM] handle_buy_property: SUCCESS - player_id={}, property_id={}, price={}",
+        player_id, position, property_info.price
+    );
+    
     Ok(())
 }
 
 pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), String> {
     // 0. Check state
+    tracing::info!(
+        "[FSM] handle_pay_rent: START - player_id={}, current_turn={}, phase={:?}",
+        player_id, game.current_turn, game.phase
+    );
+    
     game.check_turn(player_id)?;
     game.check_phase(crate::game::state::GamePhase::EndTurn)?;
 
@@ -54,6 +77,10 @@ pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), Stri
     // 3. Check ownership
     let owner_id = property_state.owner_id.as_ref().ok_or("Property not owned")?;
     if owner_id == player_id {
+        tracing::warn!(
+            "[FSM] handle_pay_rent: FAIL - player owns this property, position={}",
+            player_pos
+        );
         return Err("You own this property".to_string());
     }
     
@@ -66,8 +93,17 @@ pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), Stri
     };
     let rent = game.calculate_rent(player_pos, dice_sum);
     
+    tracing::info!(
+        "[FSM] handle_pay_rent: CALCULATING - position={}, dice_sum={}, rent={}, owner={}",
+        player_pos, dice_sum, rent, owner_id
+    );
+    
     // 5. Check funds
     if game.players[player_idx].money < rent {
+        tracing::warn!(
+            "[FSM] handle_pay_rent: FAIL - insufficient funds, money={}, rent={}",
+            game.players[player_idx].money, rent
+        );
         return Err("Insufficient funds".to_string()); // In future: bankruptcy logic
     }
     
@@ -79,6 +115,11 @@ pub fn handle_pay_rent(game: &mut GameState, player_id: &str) -> Result<(), Stri
     }
     
     game.rent_paid = true;
+    
+    tracing::info!(
+        "[FSM] handle_pay_rent: SUCCESS - player_id={}, position={}, rent={}, owner={}",
+        player_id, player_pos, rent, owner_id
+    );
 
     Ok(())
 }

@@ -6,6 +6,7 @@ pub enum GamePhase {
     Rolling,
     Moving,
     EndTurn,
+    GameOver,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,8 +28,7 @@ pub struct PropertyState {
     pub name: String,
     pub owner_id: Option<String>,
     pub houses: u8,
-    // For future milestones:
-    // pub is_mortgaged: bool,
+    pub is_mortgaged: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -57,6 +57,7 @@ pub struct GameState {
     pub total_houses: u8,
     pub total_hotels: u8,
     pub last_dice_roll: Option<(u8, u8)>,
+    pub winner: Option<String>,
 }
 
 impl GameState {
@@ -66,6 +67,7 @@ impl GameState {
             name: p.name.to_string(),
             owner_id: None,
             houses: 0,
+            is_mortgaged: false,
         }).collect();
 
         let (chance_deck, community_chest_deck) = crate::game::cards::initialize_decks();
@@ -82,25 +84,59 @@ impl GameState {
             total_houses: 32,
             total_hotels: 12,
             last_dice_roll: None,
+            winner: None,
         }
     }
     
     pub fn check_turn(&self, player_id: &str) -> Result<(), String> {
-        if let Some(player) = self.players.get(self.current_turn) {
+        let current_player = self.players.get(self.current_turn);
+        let current_player_name = current_player.map(|p| p.name.clone()).unwrap_or_else(|| "Unknown".to_string());
+        
+        // Log player status for debugging
+        let player_status = current_player.map(|p| {
+            format!("pos={}, money={}, jail={}", p.position, p.money, p.is_in_jail)
+        }).unwrap_or_else(|| "N/A".to_string());
+        
+        if let Some(player) = current_player {
             if player.id == player_id {
+                tracing::debug!(
+                    "[FSM] check_turn: PASS - player_id={}, current_turn={}, player={}, status=[{}]",
+                    player_id, self.current_turn, current_player_name, player_status
+                );
                 Ok(())
             } else {
+                tracing::warn!(
+                    "[FSM] check_turn: FAIL - player_id={} is not current player, current_turn={}, expected={}, status=[{}]",
+                    player_id, self.current_turn, current_player_name, player_status
+                );
                 Err("Not your turn".to_string())
             }
         } else {
+            tracing::error!(
+                "[FSM] check_turn: FAIL - current player not found, current_turn={}, total_players={}",
+                self.current_turn, self.players.len()
+            );
             Err("Current player not found".to_string())
         }
     }
 
     pub fn check_phase(&self, expected: GamePhase) -> Result<(), String> {
+        // Get current player status for context
+        let player_status = self.players.get(self.current_turn).map(|p| {
+            format!("player={}, pos={}, money={}, jail={}", p.name, p.position, p.money, p.is_in_jail)
+        }).unwrap_or_else(|| "no_player".to_string());
+        
         if self.phase == expected {
+            tracing::debug!(
+                "[FSM] check_phase: PASS - expected={:?}, actual={:?}, turn={}, [{}]",
+                expected, self.phase, self.current_turn, player_status
+            );
             Ok(())
         } else {
+            tracing::warn!(
+                "[FSM] check_phase: FAIL - expected={:?}, actual={:?}, turn={}, [{}]",
+                expected, self.phase, self.current_turn, player_status
+            );
             Err(format!("Invalid phase. Expected {:?}, got {:?}", expected, self.phase))
         }
     }

@@ -26,7 +26,8 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         setVoteState,
         setCurrentCard,
         removeTrade,
-        updatePropertyHouses
+        updatePropertyHouses,
+        setIsRolling
     } = useGameStore();
 
     // Helper to handle state updates and detect money changes
@@ -66,9 +67,10 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         // const wsUrl = `${protocol}//${host}/ws`;
 
         // Direct connection to backend to bypass Vite proxy issue
-        const wsUrl = window.location.protocol === 'https:'
-            ? `wss://${window.location.host}/ws`
-            : `ws://${window.location.host}/ws`;
+        // Direct connection to backend to bypass Vite proxy issue
+        const wsUrl = window.location.hostname === 'localhost'
+            ? 'ws://localhost:3000/ws'
+            : (window.location.protocol === 'https:' ? `wss://${window.location.host}/ws` : `ws://${window.location.host}/ws`);
 
         logToServer('info', `Attempting WebSocket connection to ${wsUrl}`);
 
@@ -110,6 +112,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                     case 'DiceRolled':
                         setDice(message.dice);
                         handleGameStateUpdate(message.state);
+                        setIsRolling(false); // Reset rolling state after dice result received
                         break;
                     case 'GameStateUpdate':
                         handleGameStateUpdate(message.state);
@@ -180,6 +183,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                         break;
                     case 'Error':
                         setError(message.message);
+                        setIsRolling(false); // Reset rolling state on error
                         logToServer('warn', 'Received error message from server', { message: message.message });
                         break;
                     case 'CardDrawn':
@@ -188,6 +192,19 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                     case 'JailStateUpdated':
                         // Optional: Show toast notification
                         console.log(`Player ${message.player_id} jail state updated: ${message.is_in_jail}`);
+                        break;
+                    case 'PropertyMortgaged':
+                    case 'PropertyUnmortgaged':
+                        // State update is handled by GameStateUpdate that follows
+                        console.log(`Property ${message.property_id} mortgage state changed`);
+                        break;
+                    case 'PlayerBankrupt':
+                        console.log(`Player ${message.player_name} went bankrupt!`);
+                        // State update handled by GameStateUpdate
+                        break;
+                    case 'GameOver':
+                        console.log(`Game Over! Winner: ${message.winner_name}`);
+                        // State update handled by GameStateUpdate
                         break;
                 }
             } catch (err) {

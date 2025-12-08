@@ -3,6 +3,7 @@
 1. Ask clarifying questions if you're not sure about something. Do not make architectural decision without my input.
 2. Commit atomically. Do not commit half done work. Do not commit code that doesn't build.
 3. Don't use browser to debug. Use terminal.
+4. When making plans, be sure to update plan.md and technical_documents.md.
 
 
 ## Project overview

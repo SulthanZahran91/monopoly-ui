@@ -8,6 +8,7 @@ import { IncomingTradeModal } from './Trade/IncomingTradeModal';
 import { JailModal } from './JailModal';
 import { CardNotification } from './CardNotification';
 import { PropertyModal } from './PropertyModal';
+import { GameOverModal } from './GameOverModal';
 
 export const Game: React.FC = () => {
     const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
@@ -30,6 +31,7 @@ export const Game: React.FC = () => {
                 propertyId={selectedPropertyId}
                 onClose={() => setSelectedPropertyId(null)}
             />
+            <GameOverModal />
         </div>
     );
 };

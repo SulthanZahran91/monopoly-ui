@@ -3,7 +3,7 @@ export interface Player {
     name: string;
 }
 
-export type GamePhase = 'Waiting' | 'Rolling' | 'Moving' | 'EndTurn';
+export type GamePhase = 'Waiting' | 'Rolling' | 'Moving' | 'EndTurn' | 'GameOver';
 
 export interface PlayerState {
     id: string;
@@ -22,6 +22,7 @@ export interface PropertyState {
     name: string;
     owner_id: string | null;
     houses: number;
+    is_mortgaged: boolean;
 }
 
 export interface Card {
@@ -41,9 +42,10 @@ export interface GameState {
     rent_paid: boolean;
     chance_deck: Card[];
     community_chest_deck: Card[];
-    active_trades: Record<string, TradeProposal>; // Using Record for HashMap
+    active_trades: Record<string, TradeProposal>;
     total_houses: number;
     total_hotels: number;
+    winner: string | null;
 }
 
 export type TradeStatus = "Pending" | "Accepted" | "Rejected" | "Cancelled";
@@ -79,7 +81,9 @@ export type ClientMessage =
     | { type: "RejectTrade"; trade_id: string }
     | { type: "CancelTrade"; trade_id: string }
     | { type: "BuyBuilding"; property_id: number }
-    | { type: "SellBuilding"; property_id: number };
+    | { type: "SellBuilding"; property_id: number }
+    | { type: "MortgageProperty"; property_id: number }
+    | { type: "UnmortgageProperty"; property_id: number };
 
 export type ServerMessage =
     | { type: 'RoomCreated'; room_code: string; player_id: string; players: Player[] }
@@ -101,4 +105,8 @@ export type ServerMessage =
     | { type: "TradeCancelled"; trade_id: string }
     | { type: "BuildingBought"; property_id: number; houses: number }
     | { type: "BuildingSold"; property_id: number; houses: number }
+    | { type: "PropertyMortgaged"; property_id: number; mortgage_value: number }
+    | { type: "PropertyUnmortgaged"; property_id: number; cost: number }
+    | { type: "PlayerBankrupt"; player_id: string; player_name: string; creditor_id: string | null }
+    | { type: "GameOver"; winner_id: string; winner_name: string }
     | { type: 'Error'; message: string };

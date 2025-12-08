@@ -9,6 +9,14 @@ pub fn roll_dice() -> (u8, u8) {
 
 impl GameState {
     pub fn next_turn(&mut self, player_id: &str) -> Result<(), String> {
+        let old_phase = self.phase.clone();
+        let old_turn = self.current_turn;
+        
+        tracing::info!(
+            "[FSM] next_turn: START - player_id={}, current_turn={}, phase={:?}",
+            player_id, self.current_turn, self.phase
+        );
+        
         self.check_turn(player_id)?;
         self.check_phase(GamePhase::EndTurn)?;
 
@@ -20,10 +28,23 @@ impl GameState {
         if let Some(player) = self.players.get_mut(self.current_turn) {
             player.doubles_count = 0;
         }
+        
+        tracing::info!(
+            "[FSM] next_turn: TRANSITION - turn: {} -> {}, phase: {:?} -> {:?}",
+            old_turn, self.current_turn, old_phase, self.phase
+        );
+        
         Ok(())
     }
 
     pub fn handle_roll(&mut self, player_id: &str) -> Result<((u8, u8), Vec<ServerMessage>), String> {
+        let old_phase = self.phase.clone();
+        
+        tracing::info!(
+            "[FSM] handle_roll: START - player_id={}, current_turn={}, phase={:?}",
+            player_id, self.current_turn, self.phase
+        );
+        
         self.check_turn(player_id)?;
         self.check_phase(GamePhase::Rolling)?;
 
@@ -32,6 +53,11 @@ impl GameState {
         let is_double = dice.0 == dice.1;
         let mut events = Vec::new();
         let player_index = self.current_turn;
+        
+        tracing::info!(
+            "[FSM] handle_roll: DICE - dice=({}, {}), is_double={}, player_index={}",
+            dice.0, dice.1, is_double, player_index
+        );
 
         if let Some(player) = self.players.get_mut(player_index) {
             if player.is_in_jail {
@@ -195,6 +221,16 @@ impl GameState {
     }
 
     pub fn send_to_jail(&mut self, player_index: usize) {
+        let old_phase = self.phase.clone();
+        let player_name = self.players.get(player_index)
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+        
+        tracing::info!(
+            "[FSM] send_to_jail: START - player_index={}, player_name={}, phase={:?}",
+            player_index, player_name, self.phase
+        );
+        
         if let Some(player) = self.players.get_mut(player_index) {
             player.position = 10; // Jail position
             player.is_in_jail = true;
@@ -202,6 +238,11 @@ impl GameState {
             player.doubles_count = 0;
         }
         self.phase = GamePhase::EndTurn;
+        
+        tracing::info!(
+            "[FSM] send_to_jail: TRANSITION - phase: {:?} -> {:?}",
+            old_phase, self.phase
+        );
     }
 
     fn draw_chance_card(&mut self) -> Card {
@@ -433,6 +474,12 @@ impl GameState {
 
     pub fn calculate_rent(&self, property_id: usize, dice_roll: u8) -> i32 {
         let property = &self.properties.iter().find(|p| p.id == property_id).unwrap();
+        
+        // Mortgaged properties don't collect rent
+        if property.is_mortgaged {
+            return 0;
+        }
+        
         let prop_info = match crate::game::board::get_property(property_id) {
             Some(info) => info,
             None => return 0,
@@ -651,6 +698,126 @@ impl GameState {
             ServerMessage::GameStateUpdate { state: self.clone() },
             ServerMessage::BuildingSold { property_id, houses: new_houses }
         ])
+    }
+
+    pub fn handle_mortgage_property(&mut self, player_id: String, property_id: usize) -> Result<Vec<ServerMessage>, String> {
+        let property = self.properties.iter().find(|p| p.id == property_id).ok_or("Property not found")?;
+        
+        if property.owner_id.as_ref() != Some(&player_id) {
+            return Err("You do not own this property".to_string());
+        }
+        
+        if property.is_mortgaged {
+            return Err("Property is already mortgaged".to_string());
+        }
+        
+        if property.houses > 0 {
+            return Err("Must sell all buildings before mortgaging".to_string());
+        }
+        
+        let prop_info = crate::game::board::get_property(property_id).ok_or("Property not found")?;
+        let mortgage_value = prop_info.price / 2;
+        
+        let player_idx = self.players.iter().position(|p| p.id == player_id).unwrap();
+        self.players[player_idx].money += mortgage_value;
+        
+        let prop_mut = self.properties.iter_mut().find(|p| p.id == property_id).unwrap();
+        prop_mut.is_mortgaged = true;
+        
+        Ok(vec![
+            ServerMessage::PropertyMortgaged { property_id, mortgage_value },
+            ServerMessage::GameStateUpdate { state: self.clone() }
+        ])
+    }
+
+    pub fn handle_unmortgage_property(&mut self, player_id: String, property_id: usize) -> Result<Vec<ServerMessage>, String> {
+        let property = self.properties.iter().find(|p| p.id == property_id).ok_or("Property not found")?;
+        
+        if property.owner_id.as_ref() != Some(&player_id) {
+            return Err("You do not own this property".to_string());
+        }
+        
+        if !property.is_mortgaged {
+            return Err("Property is not mortgaged".to_string());
+        }
+        
+        let prop_info = crate::game::board::get_property(property_id).ok_or("Property not found")?;
+        let unmortgage_cost = (prop_info.price / 2) + (prop_info.price / 20); // 50% + 10% = 110% of mortgage value
+        
+        let player_idx = self.players.iter().position(|p| p.id == player_id).unwrap();
+        if self.players[player_idx].money < unmortgage_cost {
+            return Err("Not enough money to unmortgage".to_string());
+        }
+        
+        self.players[player_idx].money -= unmortgage_cost;
+        
+        let prop_mut = self.properties.iter_mut().find(|p| p.id == property_id).unwrap();
+        prop_mut.is_mortgaged = false;
+        
+        Ok(vec![
+            ServerMessage::PropertyUnmortgaged { property_id, cost: unmortgage_cost },
+            ServerMessage::GameStateUpdate { state: self.clone() }
+        ])
+    }
+
+    pub fn handle_bankruptcy(&mut self, bankrupt_player_id: &str, creditor_id: Option<&str>) -> Vec<ServerMessage> {
+        let mut events = Vec::new();
+        
+        let player_name = self.players.iter()
+            .find(|p| p.id == bankrupt_player_id)
+            .map(|p| p.name.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+        
+        // Transfer all properties to creditor, or return to bank
+        for property in self.properties.iter_mut() {
+            if property.owner_id.as_deref() == Some(bankrupt_player_id) {
+                if let Some(cred_id) = creditor_id {
+                    // Transfer to creditor (mortgages stay as-is per user decision)
+                    property.owner_id = Some(cred_id.to_string());
+                } else {
+                    // Return to bank
+                    property.owner_id = None;
+                    property.is_mortgaged = false;
+                    property.houses = 0;
+                }
+            }
+        }
+        
+        // Remove bankrupt player from game
+        if let Some(idx) = self.players.iter().position(|p| p.id == bankrupt_player_id) {
+            self.players.remove(idx);
+            
+            // Adjust current turn
+            if !self.players.is_empty() {
+                self.current_turn = self.current_turn % self.players.len();
+            }
+        }
+        
+        events.push(ServerMessage::PlayerBankrupt { 
+            player_id: bankrupt_player_id.to_string(),
+            player_name,
+            creditor_id: creditor_id.map(|s| s.to_string())
+        });
+        
+        // Check for victory
+        events.extend(self.check_victory());
+        
+        events.push(ServerMessage::GameStateUpdate { state: self.clone() });
+        events
+    }
+
+    pub fn check_victory(&mut self) -> Vec<ServerMessage> {
+        if self.players.len() == 1 {
+            let winner = &self.players[0];
+            self.phase = GamePhase::GameOver;
+            self.winner = Some(winner.id.clone());
+            
+            return vec![ServerMessage::GameOver {
+                winner_id: winner.id.clone(),
+                winner_name: winner.name.clone()
+            }];
+        }
+        Vec::new()
     }
 
     pub fn remove_player(&mut self, player_id: &str) {

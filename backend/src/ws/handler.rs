@@ -106,6 +106,32 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                                     if let Some(player) = state.players.get(current_player_idx) {
                                                         match state.handle_roll(player_id) {
                                                             Ok((dice, events)) => {
+                                                                let is_doubles = dice.0 == dice.1;
+                                                                let phase_before = state.phase.clone();
+                                                                
+                                                                // If sent to jail, phase is already EndTurn (set by send_to_jail called in handle_roll)
+                                                                // If not sent to jail, we are in Rolling.
+                                                                if state.phase == GamePhase::Rolling {
+                                                                    if !is_doubles {
+                                                                        state.phase = GamePhase::EndTurn;
+                                                                        tracing::info!(
+                                                                            "[FSM] RollDice handler: TRANSITION - phase: {:?} -> {:?} (not doubles)",
+                                                                            phase_before, state.phase
+                                                                        );
+                                                                    } else {
+                                                                        tracing::info!(
+                                                                            "[FSM] RollDice handler: NO TRANSITION - phase stays {:?} (doubles={})",
+                                                                            state.phase, is_doubles
+                                                                        );
+                                                                    }
+                                                                    // If doubles, stay in Rolling
+                                                                } else {
+                                                                    tracing::info!(
+                                                                        "[FSM] RollDice handler: NO HANDLER TRANSITION - phase already {:?} (set by game logic, e.g., jail)",
+                                                                        state.phase
+                                                                    );
+                                                                }
+
                                                                 let response = ServerMessage::DiceRolled { 
                                                                     dice, 
                                                                     state: state.clone() 
@@ -115,16 +141,6 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                                                 let events_occurred = !events.is_empty();
                                                                 for event in events {
                                                                     let _ = tx.send(event);
-                                                                }
-
-                                                                let is_doubles = dice.0 == dice.1;
-                                                                // If sent to jail, phase is already EndTurn (set by send_to_jail called in handle_roll)
-                                                                // If not sent to jail, we are in Rolling.
-                                                                if state.phase == GamePhase::Rolling {
-                                                                    if !is_doubles {
-                                                                        state.phase = GamePhase::EndTurn;
-                                                                    }
-                                                                    // If doubles, stay in Rolling
                                                                 }
                                                                 
                                                                 if events_occurred {
@@ -274,6 +290,44 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                                 let tx = room.tx.clone();
                                                 if let Some(state) = &mut room.game_state {
                                                     match state.handle_sell_building(player_id.clone(), property_id) {
+                                                        Ok(events) => {
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = tx.send(ServerMessage::Error { message: e });
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::MortgageProperty { property_id } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    match state.handle_mortgage_property(player_id.clone(), property_id) {
+                                                        Ok(events) => {
+                                                            for event in events {
+                                                                let _ = tx.send(event);
+                                                            }
+                                                        }
+                                                        Err(e) => {
+                                                            let _ = tx.send(ServerMessage::Error { message: e });
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ClientMessage::UnmortgageProperty { property_id } => {
+                                        if let (Some(room_code), Some(player_id)) = (&current_room_code, &current_player_id) {
+                                            if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
+                                                let tx = room.tx.clone();
+                                                if let Some(state) = &mut room.game_state {
+                                                    match state.handle_unmortgage_property(player_id.clone(), property_id) {
                                                         Ok(events) => {
                                                             for event in events {
                                                                 let _ = tx.send(event);

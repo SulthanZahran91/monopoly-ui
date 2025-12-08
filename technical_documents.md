@@ -162,3 +162,31 @@ If you are working on:
 - **Game Logic:** Read `backend/src/game/logic.rs` and `backend/src/game/state.rs`.
 - **New Features:** Add new variants to `ClientMessage` in `backend/src/ws/messages.rs` and `frontend/src/types/game.ts`.
 - **UI:** Check `frontend/src/components/` and `frontend/src/store.ts`.
+
+---
+
+## 8. FSM Debugging
+
+The game uses a Finite State Machine with phases: `Waiting`, `Rolling`, `Moving`, `EndTurn`.
+
+### Logging
+All FSM transitions are logged with `[FSM]` prefix. Logs include player status (position, money, jail state).
+
+```bash
+# View FSM logs only
+RUST_LOG=backend=info cargo run 2>&1 | grep '\[FSM\]'
+```
+
+### Frontend State
+The store tracks `isRolling` to prevent double-clicks and show loading state:
+- `isRolling: boolean` - True while waiting for dice result
+- `lastRollTime: number` - Timestamp for debouncing (1 second minimum between rolls)
+
+### Key Files
+| File | FSM Role |
+|------|----------|
+| `backend/src/game/state.rs` | `check_turn()`, `check_phase()` validation |
+| `backend/src/game/logic.rs` | `next_turn()`, `handle_roll()`, `send_to_jail()` transitions |
+| `backend/src/ws/handler.rs` | Phase transition after RollDice |
+| `frontend/src/store.ts` | `isRolling`, `lastRollTime` state |
+| `frontend/src/components/Game/Controls.tsx` | Debounced roll button with loading spinner |

@@ -24,6 +24,8 @@ pub enum ClientMessage {
     CancelTrade { trade_id: String },
     BuyBuilding { property_id: usize },
     SellBuilding { property_id: usize },
+    MortgageProperty { property_id: usize },
+    UnmortgageProperty { property_id: usize },
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -48,5 +50,9 @@ pub enum ServerMessage {
     TradeCancelled { trade_id: String },
     BuildingBought { property_id: usize, houses: u8 },
     BuildingSold { property_id: usize, houses: u8 },
+    PropertyMortgaged { property_id: usize, mortgage_value: i32 },
+    PropertyUnmortgaged { property_id: usize, cost: i32 },
+    PlayerBankrupt { player_id: String, player_name: String, creditor_id: Option<String> },
+    GameOver { winner_id: String, winner_name: String },
     Error { message: String },
 }

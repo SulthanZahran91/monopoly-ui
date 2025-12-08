@@ -1,5 +1,5 @@
 # Keliling UI — Complete Project Documentation
-
+DON'T FORGET TO READ AGENTS.MD AND TECHNICAL_DOCUMENTS.MD
 > **Monopoly-style web game themed around Universitas Indonesia**
 > 
 > "Kuasai kampus, taklukkan fakultas!"
@@ -323,7 +323,7 @@ M0          M1          M2          M3          M4          M5          M6      
 - [ ] Button press feedback
 
 ### UX
-- [ ] Loading states
+- [x] Loading states
 - [ ] Error handling + toasts
 - [ ] Reconnection handling
 - [ ] Connection status indicator

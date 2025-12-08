@@ -2,15 +2,23 @@ import { useGameStore } from '../../store';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { getProperty, getTile, getGroupColor } from '../../data/board';
 
+const ROLL_DEBOUNCE_MS = 1000; // Minimum 1 second between rolls
+
 export const Controls = () => {
-    const { gameState, playerId, dice } = useGameStore();
+    const { gameState, playerId, dice, isRolling, lastRollTime, setIsRolling, setLastRollTime } = useGameStore();
     const { sendMessage } = useWebSocket();
 
     if (!gameState || !playerId) return null;
 
     const currentPlayer = gameState.players[gameState.current_turn];
     const isMyTurn = currentPlayer.id === playerId;
-    const canRoll = isMyTurn && gameState.phase === 'Rolling';
+
+    // Debounce check: prevent rapid clicks
+    const now = Date.now();
+    const canRollDebounce = (now - lastRollTime) > ROLL_DEBOUNCE_MS;
+
+    // Combined roll check: must be my turn, in Rolling phase, not already rolling, and debounce passed
+    const canRoll = isMyTurn && gameState.phase === 'Rolling' && !isRolling && canRollDebounce;
 
     // Property Logic
     const currentPosition = currentPlayer.position;
@@ -32,6 +40,15 @@ export const Controls = () => {
         const owner = gameState.players.find(p => p.id === propertyState.owner_id);
         if (owner) ownerName = owner.name;
     }
+
+    const handleRollDice = () => {
+        if (!canRoll) return;
+
+        // Set rolling state and update timestamp
+        setIsRolling(true);
+        setLastRollTime(Date.now());
+        sendMessage({ type: 'RollDice' });
+    };
 
     return (
         <div className="bg-gray-800 p-4 rounded-xl shadow-lg space-y-4">
@@ -82,14 +99,24 @@ export const Controls = () => {
                 ) : (
                     <>
                         <button
-                            onClick={() => sendMessage({ type: 'RollDice' })}
+                            onClick={handleRollDice}
                             disabled={!canRoll}
-                            className={`px-6 py-3 rounded-lg font-bold transition-colors ${canRoll
+                            className={`px-6 py-3 rounded-lg font-bold transition-colors flex items-center gap-2 ${canRoll
                                 ? 'bg-yellow-500 hover:bg-yellow-600 text-black'
                                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                                 }`}
                         >
-                            Roll Dice
+                            {isRolling ? (
+                                <>
+                                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Rolling...
+                                </>
+                            ) : (
+                                'Roll Dice'
+                            )}
                         </button>
 
                         {canBuy && propertyInfo && propertyInfo.price !== undefined && (
