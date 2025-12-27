@@ -27,6 +27,7 @@ pub enum ClientMessage {
     MortgageProperty { property_id: usize },
     UnmortgageProperty { property_id: usize },
     DeclareBankruptcy { creditor_id: Option<String> },
+    Reconnect { room_code: String, player_id: String },
 }
 
 #[derive(Debug, Serialize, Clone)]

@@ -78,13 +78,45 @@ async fn handle_socket(socket: WebSocket, room_manager: Arc<RoomManager>) {
                                                 players
                                             };
                                             let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
-                                        } else {
-                                            tracing::warn!("Failed to join room: {}", room_code);
-                                            let response = ServerMessage::Error { message: "Room not found".to_string() };
-                                            let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
                                         }
-                                    }
-                                    ClientMessage::StartGame => {
+                                     }
+                                     ClientMessage::Reconnect { room_code, player_id } => {
+                                         if let Some(room) = room_manager.rooms.get(&room_code) {
+                                             if room.players.contains_key(&player_id) {
+                                                 current_room_code = Some(room_code.clone());
+                                                 current_player_id = Some(player_id.clone());
+                                                 broadcast_rx = Some(room.tx.subscribe());
+
+                                                 tracing::info!("Reconnected: {}, Player: {}", room_code, player_id);
+
+                                                 let players: Vec<_> = room.players.values().cloned().collect();
+                                                 let response = ServerMessage::RoomJoined {
+                                                     room_code,
+                                                     player_id,
+                                                     players
+                                                 };
+                                                 let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+
+                                                 // If game has started, send the current state
+                                                 if let Some(state) = &room.game_state {
+                                                     tracing::info!("Sending current game state to reconnected player. Phase: {:?}", state.phase);
+                                                     let state_update = ServerMessage::GameStateUpdate { state: state.clone() };
+                                                     let _ = sender.send(Message::Text(serde_json::to_string(&state_update).unwrap())).await;
+                                                 } else {
+                                                     tracing::info!("No game state found for reconnected room");
+                                                 }
+                                             } else {
+                                                 tracing::warn!("Failed to reconnect: Player {} not in room {}", player_id, room_code);
+                                                 let response = ServerMessage::Error { message: "Player not in room".to_string() };
+                                                 let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+                                             }
+                                         } else {
+                                             tracing::warn!("Failed to reconnect: Room {} not found", room_code);
+                                             let response = ServerMessage::Error { message: "Room not found".to_string() };
+                                             let _ = sender.send(Message::Text(serde_json::to_string(&response).unwrap())).await;
+                                         }
+                                     }
+                                     ClientMessage::StartGame => {
                                         if let Some(room_code) = &current_room_code {
                                             if let Some(mut room) = room_manager.rooms.get_mut(room_code) {
                                                 room.start_game();

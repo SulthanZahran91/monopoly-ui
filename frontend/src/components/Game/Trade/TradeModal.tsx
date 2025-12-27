@@ -2,7 +2,6 @@
 import React, { useState } from 'react';
 import { useGameStore } from '../../../store';
 import { useWebSocket } from '../../../hooks/useWebSocket';
-import type { TradeOffer } from '../../../types/game';
 
 interface TradeModalProps {
     isOpen: boolean;
@@ -10,45 +9,47 @@ interface TradeModalProps {
 }
 
 export const TradeModal: React.FC<TradeModalProps> = ({ isOpen, onClose }) => {
-    const { gameState, playerId, players } = useGameStore();
-    const { sendMessage } = useWebSocket();
+    const { gameState: state, playerId } = useGameStore();
+    const { proposeTrade } = useWebSocket();
 
     const [targetPlayerId, setTargetPlayerId] = useState<string>('');
     const [offerMoney, setOfferMoney] = useState<number>(0);
-    const [requestMoney, setRequestMoney] = useState<number>(0);
     const [offerProperties, setOfferProperties] = useState<number[]>([]);
+    const [requestMoney, setRequestMoney] = useState<number>(0);
     const [requestProperties, setRequestProperties] = useState<number[]>([]);
 
-    if (!isOpen || !gameState || !playerId) return null;
+    // Reset state when modal opens
+    React.useEffect(() => {
+        if (isOpen) {
+            setTargetPlayerId('');
+            setOfferMoney(0);
+            setOfferProperties([]);
+            setRequestMoney(0);
+            setRequestProperties([]);
+        }
+    }, [isOpen]);
 
-    const currentPlayer = gameState.players.find(p => p.id === playerId);
-    const targetPlayer = gameState.players.find(p => p.id === targetPlayerId);
+    if (!isOpen || !state) return null;
 
-    const myProperties = gameState.properties.filter(p => p.owner_id === playerId);
-    const targetProperties = targetPlayerId
-        ? gameState.properties.filter(p => p.owner_id === targetPlayerId)
+    const otherPlayers = state.players.filter(p => p.id !== playerId);
+    const myPlayer = state.players.find(p => p.id === playerId);
+    const targetPlayer = state.players.find(p => p.id === targetPlayerId);
+
+    const myProperties = state.properties.filter(p => p.owner_id === playerId);
+    const targetProperties = targetPlayer
+        ? state.properties.filter(p => p.owner_id === targetPlayerId)
         : [];
 
     const handlePropose = () => {
         if (!targetPlayerId) return;
 
-        const offer: TradeOffer = {
+        proposeTrade(targetPlayerId, {
             money: offerMoney,
-            property_ids: offerProperties
-        };
-
-        const request: TradeOffer = {
+            propertyIds: offerProperties
+        }, {
             money: requestMoney,
-            property_ids: requestProperties
-        };
-
-        sendMessage({
-            type: 'ProposeTrade',
-            target_player_id: targetPlayerId,
-            offer,
-            request
+            propertyIds: requestProperties
         });
-
         onClose();
     };
 
@@ -66,18 +67,19 @@ export const TradeModal: React.FC<TradeModalProps> = ({ isOpen, onClose }) => {
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="bg-white p-6 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                 <h2 className="text-2xl font-bold mb-4">Propose Trade</h2>
 
-                <div className="mb-4">
-                    <label className="block text-sm font-medium mb-1">Trade With:</label>
+                {/* Select Player */}
+                <div className="mb-6">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Trade with:</label>
                     <select
-                        className="w-full border rounded p-2"
+                        className="w-full p-2 border rounded"
                         value={targetPlayerId}
                         onChange={(e) => setTargetPlayerId(e.target.value)}
                     >
-                        <option value="">Select Player</option>
-                        {players.filter(p => p.id !== playerId).map(p => (
+                        <option value="">Select a player</option>
+                        {otherPlayers.map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                     </select>
@@ -87,83 +89,89 @@ export const TradeModal: React.FC<TradeModalProps> = ({ isOpen, onClose }) => {
                     <div className="grid grid-cols-2 gap-6">
                         {/* My Offer */}
                         <div className="border p-4 rounded">
-                            <h3 className="font-bold mb-2">You Offer</h3>
+                            <h3 className="font-bold mb-2 text-green-600">You Give</h3>
 
                             <div className="mb-4">
-                                <label className="block text-sm">Money (Max: {currentPlayer?.money})</label>
+                                <label className="block text-sm text-gray-600">Money</label>
                                 <input
+                                    id="trade-offer-money"
                                     type="number"
-                                    className="w-full border rounded p-1"
+                                    className="w-full p-1 border rounded"
                                     value={offerMoney}
-                                    onChange={(e) => setOfferMoney(Math.min(Number(e.target.value), currentPlayer?.money || 0))}
-                                    max={currentPlayer?.money}
+                                    onChange={(e) => setOfferMoney(Number(e.target.value))}
+                                    max={myPlayer?.money || 0}
                                 />
+                                <div className="text-xs text-gray-500">Max: Rp {myPlayer?.money.toLocaleString()}</div>
                             </div>
 
                             <div>
-                                <h4 className="font-semibold mb-1">Properties</h4>
-                                <div className="space-y-1 max-h-40 overflow-y-auto">
-                                    {myProperties.map(prop => (
-                                        <label key={prop.id} className="flex items-center space-x-2">
+                                <label className="block text-sm text-gray-600 mb-1">Properties</label>
+                                <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-1">
+                                    {myProperties.map(p => (
+                                        <div key={p.id} className="flex items-center">
                                             <input
                                                 type="checkbox"
-                                                checked={offerProperties.includes(prop.id)}
-                                                onChange={() => toggleOfferProperty(prop.id)}
+                                                checked={offerProperties.includes(p.id)}
+                                                onChange={() => toggleOfferProperty(p.id)}
+                                                className="mr-2"
                                             />
-                                            <span>{prop.name}</span>
-                                        </label>
+                                            <span className="text-sm">{p.name}</span>
+                                        </div>
                                     ))}
-                                    {myProperties.length === 0 && <p className="text-gray-500 text-sm">No properties to offer</p>}
+                                    {myProperties.length === 0 && <div className="text-sm text-gray-400">No properties</div>}
                                 </div>
                             </div>
                         </div>
 
-                        {/* My Request */}
+                        {/* Their Offer */}
                         <div className="border p-4 rounded">
-                            <h3 className="font-bold mb-2">You Request</h3>
+                            <h3 className="font-bold mb-2 text-blue-600">You Get</h3>
 
                             <div className="mb-4">
-                                <label className="block text-sm">Money (Max: {targetPlayer?.money})</label>
+                                <label className="block text-sm text-gray-600">Money</label>
                                 <input
+                                    id="trade-request-money"
                                     type="number"
-                                    className="w-full border rounded p-1"
+                                    className="w-full p-1 border rounded"
                                     value={requestMoney}
-                                    onChange={(e) => setRequestMoney(Math.min(Number(e.target.value), targetPlayer?.money || 0))}
-                                    max={targetPlayer?.money}
+                                    onChange={(e) => setRequestMoney(Number(e.target.value))}
+                                    max={targetPlayer?.money || 0}
                                 />
+                                <div className="text-xs text-gray-500">Max: Rp {targetPlayer?.money.toLocaleString()}</div>
                             </div>
 
                             <div>
-                                <h4 className="font-semibold mb-1">Properties</h4>
-                                <div className="space-y-1 max-h-40 overflow-y-auto">
-                                    {targetProperties.map(prop => (
-                                        <label key={prop.id} className="flex items-center space-x-2">
+                                <label className="block text-sm text-gray-600 mb-1">Properties</label>
+                                <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-1">
+                                    {targetProperties.map(p => (
+                                        <div key={p.id} className="flex items-center">
                                             <input
                                                 type="checkbox"
-                                                checked={requestProperties.includes(prop.id)}
-                                                onChange={() => toggleRequestProperty(prop.id)}
+                                                checked={requestProperties.includes(p.id)}
+                                                onChange={() => toggleRequestProperty(p.id)}
+                                                className="mr-2"
                                             />
-                                            <span>{prop.name}</span>
-                                        </label>
+                                            <span className="text-sm">{p.name}</span>
+                                        </div>
                                     ))}
-                                    {targetProperties.length === 0 && <p className="text-gray-500 text-sm">Target has no properties</p>}
+                                    {targetProperties.length === 0 && <div className="text-sm text-gray-400">No properties</div>}
                                 </div>
                             </div>
                         </div>
                     </div>
                 )}
 
-                <div className="mt-6 flex justify-end space-x-3">
+                <div className="flex justify-end mt-6 gap-2">
                     <button
-                        className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
                         onClick={onClose}
+                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
                     >
                         Cancel
                     </button>
                     <button
-                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                         onClick={handlePropose}
                         disabled={!targetPlayerId || (offerMoney === 0 && requestMoney === 0 && offerProperties.length === 0 && requestProperties.length === 0)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                     >
                         Propose Trade
                     </button>

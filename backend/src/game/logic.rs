@@ -1098,4 +1098,32 @@ mod tests {
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid phase"));
     }
+
+    #[test]
+    fn test_trade_flow() {
+        let mut game = create_test_game();
+        
+        // 1. Propose Trade
+        let offer = crate::game::trade::TradeOffer { money: 100, property_ids: vec![] };
+        let request = crate::game::trade::TradeOffer { money: 0, property_ids: vec![] };
+        
+        let result = game.handle_propose_trade("player1".to_string(), "player2".to_string(), offer.clone(), request.clone());
+        assert!(result.is_ok());
+        
+        let trade_id = game.active_trades.keys().next().unwrap().clone();
+        
+        // 2. Accept Trade
+        let result = game.handle_accept_trade(trade_id.clone(), "player2".to_string());
+        assert!(result.is_ok());
+        
+        // Verify money transfer
+        let p1 = game.players.iter().find(|p| p.id == "player1").unwrap();
+        let p2 = game.players.iter().find(|p| p.id == "player2").unwrap();
+        
+        assert_eq!(p1.money, 1500000 - 100);
+        assert_eq!(p2.money, 1500000 + 100);
+        
+        // Verify trade removed
+        assert!(game.active_trades.is_empty());
+    }
 }

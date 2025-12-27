@@ -3,11 +3,13 @@ import { useGameStore } from '../store';
 import type { ClientMessage, ServerMessage } from '../types/game';
 import { logToServer } from '../utils/logger';
 
-
-
 interface WebSocketContextType {
     sendMessage: (message: ClientMessage) => void;
     isConnected: boolean;
+    proposeTrade: (targetPlayerId: string, offer: { money: number, propertyIds: number[] }, request: { money: number, propertyIds: number[] }) => void;
+    acceptTrade: (tradeId: string) => void;
+    rejectTrade: (tradeId: string) => void;
+    cancelTrade: (tradeId: string) => void;
 }
 
 export const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -30,14 +32,17 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         setIsRolling
     } = useGameStore();
 
+    const [isConnected, setIsConnected] = useState(false);
+    const isConnecting = useRef(false);
+    const hasReconnected = useRef(false);
+
     // Helper to handle state updates and detect money changes
-    const handleGameStateUpdate = (newState: any) => {
-        // Access current state from store (we need the latest, so we might need to use useGameStore.getState() if we were outside component, 
-        // but here we can use the store hook values if they updated? No, hooks update on render.
-        // We need the *current* value in the store right now.
-        // Since we are inside a component, `useGameStore` hook gives us values, but they might be stale in this closure if not in dependency array.
-        // However, `useEffect` has `setGameState` in dependency.
-        // To get the *previous* state reliably for comparison, we can use `useGameStore.getState()`.
+    const handleGameStateUpdate = useCallback((newState: any) => {
+        console.log('--- Game State Update ---');
+        console.log('Phase:', newState.phase);
+        console.log('Turn:', newState.current_turn);
+        console.log('Active Trades Count:', newState.active_trades ? Object.keys(newState.active_trades).length : 0);
+
         const currentState = useGameStore.getState().gameState;
 
         if (currentState) {
@@ -50,37 +55,42 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
             });
         }
         setGameState(newState);
-    };
 
-    // Use a ref to track if we've already set up the connection to avoid double-init in StrictMode
-    const isConnecting = useRef(false);
-    const [isConnected, setIsConnected] = useState(false);
+        // Synchronize active trades
+        if (newState.active_trades) {
+            const trades = Object.values(newState.active_trades);
+            console.log('Syncing active trades:', trades.length);
+            useGameStore.getState().setTrades(trades as any);
+        } else {
+            useGameStore.getState().setTrades([]);
+        }
+    }, [addMoneyAnimation, setGameState]);
 
+    const sendMessage = useCallback((message: ClientMessage) => {
+        if (ws.current?.readyState === WebSocket.OPEN) {
+            ws.current.send(JSON.stringify(message));
+        } else {
+            console.error('WebSocket is not connected');
+            setError('Not connected to server');
+        }
+    }, [setError]);
+
+    // Connection logic
     useEffect(() => {
         if (ws.current || isConnecting.current) return;
 
         isConnecting.current = true;
-
-        // Dynamically determine the WebSocket URL based on the current page origin
-        // const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        // const host = window.location.host;
-        // const wsUrl = `${protocol}//${host}/ws`;
-
-        // Direct connection to backend to bypass Vite proxy issue
-        // Direct connection to backend to bypass Vite proxy issue
         const wsUrl = window.location.hostname === 'localhost'
             ? 'ws://localhost:3000/ws'
             : (window.location.protocol === 'https:' ? `wss://${window.location.host}/ws` : `ws://${window.location.host}/ws`);
 
         logToServer('info', `Attempting WebSocket connection to ${wsUrl}`);
-
         const socket = new WebSocket(wsUrl);
         ws.current = socket;
 
         socket.onopen = () => {
             if (socket !== ws.current) return;
             console.log('Connected to WebSocket');
-            logToServer('info', 'WebSocket connected successfully');
             setError(null);
             setIsConnected(true);
             isConnecting.current = false;
@@ -90,7 +100,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
             if (socket !== ws.current) return;
             try {
                 const message: ServerMessage = JSON.parse(event.data);
-                console.log('Received:', message);
+                console.log('WS Received:', message.type, message);
 
                 switch (message.type) {
                     case 'RoomCreated':
@@ -99,6 +109,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                         setPlayers(message.players);
                         break;
                     case 'RoomJoined':
+                        console.log('Handling RoomJoined:', message.room_code, 'Players:', message.players.length);
                         setRoomCode(message.room_code);
                         setPlayerId(message.player_id);
                         setPlayers(message.players);
@@ -112,9 +123,10 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                     case 'DiceRolled':
                         setDice(message.dice);
                         handleGameStateUpdate(message.state);
-                        setIsRolling(false); // Reset rolling state after dice result received
+                        setIsRolling(false);
                         break;
                     case 'GameStateUpdate':
+                        console.log('Handling GameStateUpdate. Phase:', message.state.phase);
                         handleGameStateUpdate(message.state);
                         break;
                     case 'TurnEnded':
@@ -127,7 +139,7 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                             end_time: message.end_time,
                             votes_for: 1,
                             votes_against: 0,
-                            required: 0 // Will be updated by VoteUpdate immediately
+                            required: 0
                         });
                         break;
                     case 'VoteUpdate': {
@@ -144,13 +156,11 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                     }
                     case 'PlayerKicked':
                         setVoteState(null);
-                        // Handle if current user is kicked
                         if (message.player_id === useGameStore.getState().playerId) {
                             setError('You have been kicked from the room.');
                             setRoomCode(null as any);
                             setGameState(null as any);
                         } else {
-                            // Remove kicked player from local list
                             const currentPlayers = useGameStore.getState().players;
                             setPlayers(currentPlayers.filter(p => p.id !== message.player_id));
                         }
@@ -161,6 +171,12 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                     case 'TradeProposed':
                         useGameStore.getState().addTrade(message.proposal);
                         break;
+                    case 'TradeAccepted':
+                        removeTrade(message.trade_id);
+                        break;
+                    case 'TradeRejected':
+                        removeTrade(message.trade_id);
+                        break;
                     case 'TradeCancelled':
                         removeTrade(message.trade_id);
                         break;
@@ -170,40 +186,33 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
                         break;
                     case 'Error':
                         setError(message.message);
-                        setIsRolling(false); // Reset rolling state on error
-                        logToServer('warn', 'Received error message from server', { message: message.message });
+                        setIsRolling(false);
                         break;
                     case 'CardDrawn':
                         setCurrentCard({ card: message.card, is_chance: message.is_chance });
                         break;
                     case 'JailStateUpdated':
-                        // Optional: Show toast notification
                         console.log(`Player ${message.player_id} jail state updated: ${message.is_in_jail}`);
                         break;
                     case 'PropertyMortgaged':
                     case 'PropertyUnmortgaged':
-                        // State update is handled by GameStateUpdate that follows
                         console.log(`Property ${message.property_id} mortgage state changed`);
                         break;
                     case 'PlayerBankrupt':
                         console.log(`Player ${message.player_name} went bankrupt!`);
-                        // State update handled by GameStateUpdate
                         break;
                     case 'GameOver':
                         console.log(`Game Over! Winner: ${message.winner_name}`);
-                        // State update handled by GameStateUpdate
                         break;
                 }
             } catch (err) {
                 console.error('Failed to parse message:', err);
-                logToServer('error', 'Failed to parse WebSocket message', { error: String(err) });
             }
         };
 
         socket.onerror = (err) => {
             if (socket !== ws.current) return;
             console.error('WebSocket error:', err);
-            logToServer('error', 'WebSocket error occurred', { error: String(err) });
             setError('Connection error');
             setIsConnected(false);
             isConnecting.current = false;
@@ -212,7 +221,6 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
         socket.onclose = (event) => {
             if (socket !== ws.current) return;
             console.log('Disconnected from WebSocket', event);
-            logToServer('info', 'WebSocket disconnected', { code: event.code, reason: event.reason, wasClean: event.wasClean });
             ws.current = null;
             setIsConnected(false);
             isConnecting.current = false;
@@ -226,19 +234,46 @@ export const WebSocketProvider = ({ children }: { children: ReactNode }) => {
             setIsConnected(false);
             isConnecting.current = false;
         };
-    }, [setRoomCode, setPlayerId, setPlayers, addPlayer, setGameState, setDice, setError, setIsConnected]);
+    }, [setRoomCode, setPlayerId, setPlayers, addPlayer, setGameState, setDice, setError, setIsConnected, handleGameStateUpdate, setIsRolling, setVoteState, setCurrentCard, removeTrade, updatePropertyHouses]);
 
-    const sendMessage = useCallback((message: ClientMessage) => {
-        if (ws.current?.readyState === WebSocket.OPEN) {
-            ws.current.send(JSON.stringify(message));
-        } else {
-            console.error('WebSocket is not connected');
-            setError('Not connected to server');
+    // Reconnection useEffect - moved after connection logic and sendMessage
+    useEffect(() => {
+        const { roomCode, playerId } = useGameStore.getState();
+        if (!isConnected || !roomCode || !playerId || ws.current?.readyState !== WebSocket.OPEN) {
+            if (!isConnected) hasReconnected.current = false;
+            return;
         }
-    }, [setError]);
+
+        if (!hasReconnected.current) {
+            console.log("WebSocket opened, attempting reconnection for room:", roomCode, "player:", playerId);
+            sendMessage({ type: 'Reconnect', room_code: roomCode, player_id: playerId });
+            hasReconnected.current = true;
+        }
+    }, [isConnected, sendMessage]);
+
+    const proposeTrade = useCallback((targetPlayerId: string, offer: { money: number, propertyIds: number[] }, request: { money: number, propertyIds: number[] }) => {
+        sendMessage({
+            type: 'ProposeTrade',
+            target_player_id: targetPlayerId,
+            offer: { money: offer.money, property_ids: offer.propertyIds },
+            request: { money: request.money, property_ids: request.propertyIds }
+        });
+    }, [sendMessage]);
+
+    const acceptTrade = useCallback((tradeId: string) => {
+        sendMessage({ type: 'AcceptTrade', trade_id: tradeId });
+    }, [sendMessage]);
+
+    const rejectTrade = useCallback((tradeId: string) => {
+        sendMessage({ type: 'RejectTrade', trade_id: tradeId });
+    }, [sendMessage]);
+
+    const cancelTrade = useCallback((tradeId: string) => {
+        sendMessage({ type: 'CancelTrade', trade_id: tradeId });
+    }, [sendMessage]);
 
     return (
-        <WebSocketContext.Provider value={{ sendMessage, isConnected }}>
+        <WebSocketContext.Provider value={{ sendMessage, isConnected, proposeTrade, acceptTrade, rejectTrade, cancelTrade }}>
             {children}
         </WebSocketContext.Provider>
     );

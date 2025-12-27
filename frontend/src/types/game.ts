@@ -84,7 +84,8 @@ export type ClientMessage =
     | { type: "SellBuilding"; property_id: number }
     | { type: "MortgageProperty"; property_id: number }
     | { type: "UnmortgageProperty"; property_id: number }
-    | { type: "DeclareBankruptcy"; creditor_id: string | null };
+    | { type: "DeclareBankruptcy"; creditor_id: string | null }
+    | { type: 'Reconnect'; room_code: string; player_id: string };
 
 export type ServerMessage =
     | { type: 'RoomCreated'; room_code: string; player_id: string; players: Player[] }

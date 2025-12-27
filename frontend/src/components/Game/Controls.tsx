@@ -1,12 +1,15 @@
+import { useState } from 'react';
 import { useGameStore } from '../../store';
 import { useWebSocket } from '../../hooks/useWebSocket';
 import { getProperty, getTile, getGroupColor } from '../../data/board';
+import { TradeModal } from './Trade/TradeModal';
 
 const ROLL_DEBOUNCE_MS = 1000; // Minimum 1 second between rolls
 
 export const Controls = () => {
     const { gameState, playerId, dice, isRolling, lastRollTime, setIsRolling, setLastRollTime } = useGameStore();
     const { sendMessage } = useWebSocket();
+    const [showTradeModal, setShowTradeModal] = useState(false);
 
     if (!gameState || !playerId) return null;
 
@@ -147,6 +150,13 @@ export const Controls = () => {
                         >
                             End Turn
                         </button>
+
+                        <button
+                            onClick={() => setShowTradeModal(true)}
+                            className="px-6 py-3 rounded-lg font-bold transition-colors bg-purple-500 hover:bg-purple-600 text-white"
+                        >
+                            Trade
+                        </button>
                     </>
                 )}
             </div>
@@ -162,6 +172,8 @@ export const Controls = () => {
             <div className="text-gray-300 text-sm">
                 Phase: <span className="font-bold text-white">{gameState.phase}</span>
             </div>
+
+            <TradeModal isOpen={showTradeModal} onClose={() => setShowTradeModal(false)} />
         </div >
     );
 };
