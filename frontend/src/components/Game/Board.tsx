@@ -54,7 +54,15 @@ export const Board: React.FC<BoardProps> = ({ onTileClick }) => {
     };
 
     return (
-        <div className="grid grid-cols-11 grid-rows-11 gap-1 p-4 bg-green-800 rounded-xl overflow-hidden relative" style={{ aspectRatio: '1/1', maxHeight: '90vh' }}>
+        <div
+            className="grid grid-cols-11 grid-rows-11 gap-1 p-1 md:p-4 bg-green-800 rounded-xl overflow-hidden relative shadow-2xl md:flex-shrink-0"
+            style={{
+                aspectRatio: '1/1',
+                width: '100%',
+                maxWidth: 'min(90vh, 600px)',
+                margin: '0 auto'
+            }}
+        >
             {/* Center Logo/Area */}
             <div className="col-start-2 col-end-11 row-start-2 row-end-11 bg-green-700 flex items-center justify-center rounded-lg opacity-50 pointer-events-none">
                 <div className="text-6xl font-black text-green-900 tracking-widest rotate-45 select-none">
@@ -72,7 +80,7 @@ export const Board: React.FC<BoardProps> = ({ onTileClick }) => {
                 return (
                     <div
                         key={tile.id}
-                        className="bg-white text-xs relative border border-gray-300 flex flex-col justify-between overflow-hidden shadow-sm transition-transform hover:z-10 hover:scale-105 cursor-pointer"
+                        className="bg-white text-[10px] relative border border-gray-300 flex flex-col justify-between overflow-hidden shadow-sm transition-transform hover:z-10 hover:scale-105 cursor-pointer"
                         style={style}
                         onClick={() => onTileClick?.(tile.id)}
                     >
@@ -127,7 +135,7 @@ export const Board: React.FC<BoardProps> = ({ onTileClick }) => {
                             </div>
 
                             {tileInfo?.price && (
-                                <div className="text-gray-500 text-[9px]">
+                                <div className="text-gray-500 text-[10px] font-medium">
                                     Rp {(tileInfo.price / 1000).toFixed(0)}k
                                 </div>
                             )}

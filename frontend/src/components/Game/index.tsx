@@ -14,12 +14,14 @@ export const Game: React.FC = () => {
     const [selectedPropertyId, setSelectedPropertyId] = useState<number | null>(null);
 
     return (
-        <div className="flex h-screen bg-gray-100 p-4 gap-4">
-            <div className="flex-grow flex flex-col gap-4">
-                <Board onTileClick={(id) => setSelectedPropertyId(id)} />
+        <div className="flex flex-col lg:flex-row min-h-screen bg-gray-100 p-4 gap-4 overflow-auto">
+            <div className="flex-1 flex flex-col gap-4">
+                <div className="flex justify-center">
+                    <Board onTileClick={(id) => setSelectedPropertyId(id)} />
+                </div>
                 <Controls />
             </div>
-            <div className="w-80 flex-shrink-0">
+            <div className="w-full lg:w-80 flex-shrink-0">
                 <PlayerList />
             </div>
             <VoteModal />
